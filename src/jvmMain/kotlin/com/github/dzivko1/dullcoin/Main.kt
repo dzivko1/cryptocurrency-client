@@ -11,6 +11,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import com.github.dzivko1.dullcoin.di.AddressModule
+import com.github.dzivko1.dullcoin.di.CoinModule
+import org.koin.core.context.startKoin
 
 @Composable
 @Preview
@@ -27,6 +30,10 @@ fun App() {
 }
 
 fun main() = application {
+    startKoin {
+        modules(CoinModule, AddressModule)
+    }
+
     Window(onCloseRequest = ::exitApplication) {
         App()
     }
