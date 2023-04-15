@@ -2,6 +2,9 @@ package com.github.dzivko1.dullcoin.data.network
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.json.Json
 import java.util.*
 
 class SimulatedNetworkService(
@@ -22,8 +25,12 @@ class SimulatedNetworkService(
         messageFlow = emptyFlow()
     }
 
-    override fun getMessageFlow(): Flow<String> {
-        return messageFlow
+    override fun <T : Any> getMessageFlow(messageSerializer: KSerializer<T>): Flow<T> {
+        return messageFlow.mapNotNull {
+            Json.runCatching {
+                decodeFromString(messageSerializer, it)
+            }.getOrNull()
+        }
     }
 
     override suspend fun sendMessage(message: String) {

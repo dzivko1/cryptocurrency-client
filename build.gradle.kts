@@ -2,6 +2,7 @@ import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
     kotlin("multiplatform")
+    kotlin("plugin.serialization")
     id("org.jetbrains.compose")
 }
 
@@ -24,6 +25,7 @@ kotlin {
             dependencies {
                 implementation(compose.desktop.currentOs)
                 implementation("io.insert-koin:koin-core:${extra["koin.version"]}")
+                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:${extra["serialization.version"]}")
             }
         }
         val jvmTest by getting
