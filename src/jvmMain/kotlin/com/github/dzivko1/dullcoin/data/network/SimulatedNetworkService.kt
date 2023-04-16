@@ -25,7 +25,7 @@ class SimulatedNetworkService(
         messageFlow = emptyFlow()
     }
 
-    override fun <T : Any> getMessageFlow(messageSerializer: KSerializer<T>): Flow<T> {
+    override fun <T> getMessageFlow(messageSerializer: KSerializer<T>): Flow<T> {
         return messageFlow.mapNotNull {
             Json.runCatching {
                 decodeFromString(messageSerializer, it)
@@ -33,8 +33,8 @@ class SimulatedNetworkService(
         }
     }
 
-    override suspend fun sendMessage(message: String) {
-        internet.broadcastMessage(networkId, message)
+    override suspend fun <T> sendMessage(message: T, messageSerializer: KSerializer<T>) {
+        internet.broadcastMessage(networkId, Json.encodeToString(messageSerializer, message))
     }
 
 }

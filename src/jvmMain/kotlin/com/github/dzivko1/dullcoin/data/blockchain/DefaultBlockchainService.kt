@@ -20,7 +20,7 @@ class DefaultBlockchainService(
     }
 
     private suspend fun listenForTransactions() {
-        networkService.getMessageFlow(Transaction.serializer()).collect { transaction ->
+        networkService.getMessageFlow<Transaction>().collect { transaction ->
             if (validateTransaction(transaction)) {
                 block.addTransaction(transaction)
             }
@@ -28,7 +28,7 @@ class DefaultBlockchainService(
     }
 
     private suspend fun listenForBlocks() {
-        networkService.getMessageFlow(Block.serializer()).collect {
+        networkService.getMessageFlow<Block>().collect {
 
         }
     }
