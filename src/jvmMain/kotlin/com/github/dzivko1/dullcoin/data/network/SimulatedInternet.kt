@@ -7,33 +7,43 @@ class SimulatedInternet {
 
     private val networks = mutableMapOf<String, Network>()
 
-    fun connect(clientId: String, networkId: String): Flow<String> {
+    fun connect(ownAddress: String, networkId: String): Flow<String> {
         val network = networks.computeIfAbsent(networkId) { Network() }
-        return network.connectClient(clientId)
+        return network.connectClient(ownAddress)
     }
 
-    fun disconnect(clientId: String, networkId: String) {
-        networks[networkId]?.disconnectClient(clientId)
+    fun disconnect(ownAddress: String, networkId: String) {
+        networks[networkId]?.disconnectClient(ownAddress)
     }
 
-    suspend fun broadcastMessage(networkId: String, message: String) {
-        networks[networkId]?.broadcastMessage(message)
+    suspend fun sendMessage(networkId: String, address: String, message: String) {
+        networks[networkId]?.sendMessage(address, message)
+    }
+
+    suspend fun broadcastMessage(networkId: String, senderAddress: String, message: String) {
+        networks[networkId]?.broadcastMessage(senderAddress, message)
     }
 
     private class Network {
         val clients = mutableMapOf<String, MutableSharedFlow<String>>()
 
-        fun connectClient(clientId: String): Flow<String> {
-            return clients.computeIfAbsent(clientId) { MutableSharedFlow() }
+        fun connectClient(ownAddress: String): Flow<String> {
+            return clients.computeIfAbsent(ownAddress) { MutableSharedFlow() }
         }
 
-        fun disconnectClient(clientId: String) {
-            clients.remove(clientId)
+        fun disconnectClient(ownAddress: String) {
+            clients.remove(ownAddress)
         }
 
-        suspend fun broadcastMessage(message: String) {
-            clients.forEach { (_, flow) ->
-                flow.emit(message)
+        suspend fun sendMessage(address: String, message: String) {
+            clients[address]?.emit(message)
+        }
+
+        suspend fun broadcastMessage(senderAddress: String, message: String) {
+            clients.forEach { (id, flow) ->
+                if (id != senderAddress) {
+                    flow.emit(message)
+                }
             }
         }
     }
