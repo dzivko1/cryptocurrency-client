@@ -1,5 +1,6 @@
 package com.github.dzivko1.dullcoin.data.blockchain
 
+import com.github.dzivko1.dullcoin.crypto.Crypto
 import com.github.dzivko1.dullcoin.data.blockchain.model.GetBlockchainRequest
 import com.github.dzivko1.dullcoin.data.blockchain.model.GetBlockchainResponse
 import com.github.dzivko1.dullcoin.data.network.*
@@ -12,6 +13,8 @@ import kotlinx.coroutines.launch
 class DefaultBlockchainService(
     private val networkService: NetworkService
 ) : BlockchainService {
+
+    private val transactions = mutableMapOf<String, Transaction>()
 
     private var block: Block = Block("")
 
@@ -50,6 +53,7 @@ class DefaultBlockchainService(
     private suspend fun listenForTransactions() {
         networkService.getMessageFlow<Transaction>().collect { transaction ->
             if (validateTransaction(transaction)) {
+                transactions[transaction.id] = transaction
                 block.addTransaction(transaction)
             }
         }
@@ -66,7 +70,18 @@ class DefaultBlockchainService(
     }
 
     private fun validateTransaction(transaction: Transaction): Boolean {
-        TODO()
+        val inputSum = transaction.inputs.sumOf { input ->
+            transactions[input.transactionId]
+                ?.outputs?.getOrNull(input.outputIndex)
+                ?.takeIf { it.recipientKey == transaction.senderKey }
+                ?.value ?: 0
+        }
+        val outputSum = transaction.outputs.sumOf { it.value }
+        if (inputSum < outputSum) return false
+
+        return transaction.senderSignature?.let {
+            Crypto.verify(transaction.hash(), transaction.senderKey, it)
+        } ?: false
     }
 
     private fun validateBlock(block: Block): Boolean {

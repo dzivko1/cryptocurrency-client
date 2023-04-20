@@ -1,12 +1,13 @@
 package com.github.dzivko1.dullcoin.domain.blockchain.model
 
+import com.github.dzivko1.dullcoin.crypto.Crypto
 import kotlinx.serialization.Serializable
+import java.security.PrivateKey
 import java.security.PublicKey
 
 @Serializable
 data class Transaction(
-    val id: String,
-    val senderSignature: String,
+    val senderKey: PublicKey,
     val inputs: List<Input>,
     val outputs: List<Output>
 ) {
@@ -21,4 +22,17 @@ data class Transaction(
         val value: Int,
         val recipientKey: PublicKey
     )
+
+    val id: String get() = hash()
+
+    var senderSignature: String? = null
+        private set
+
+    fun hash(): String {
+        return Crypto.hash(toString())
+    }
+
+    fun sign(key: PrivateKey) {
+        senderSignature = Crypto.sign(hash(), key)
+    }
 }
