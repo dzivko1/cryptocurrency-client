@@ -14,9 +14,10 @@ class DefaultBlockchainService(
     private val networkService: NetworkService
 ) : BlockchainService {
 
+    private val blocks = mutableMapOf<String, Block>()
     private val transactions = mutableMapOf<String, Transaction>()
 
-    private var block: Block = Block("")
+    private var currentBlock: Block = Block("")
 
     override fun connectToNetwork() {
         networkService.connect()
@@ -27,26 +28,26 @@ class DefaultBlockchainService(
     }
 
     override suspend fun maintainBlockchain(): Unit = coroutineScope {
-        updateBlockchain()
+        downloadBlockchain()
         launch { listenForRequests() }
         launch { listenForTransactions() }
         launch { listenForBlocks() }
         launch { mine() }
     }
 
-    private suspend fun updateBlockchain() {
+    private suspend fun downloadBlockchain() {
         networkService.sendRequest(
             request = GetBlockchainRequest,
             responseCount = 10,
             responseTimeout = 2000
         ) { response: GetBlockchainResponse ->
-
+            blocks += response.blockchain
         }
     }
 
     private suspend fun listenForRequests() {
         networkService.getRequestFlow<GetBlockchainRequest>().collect { request ->
-            networkService.sendResponse(request, GetBlockchainResponse("example"))
+            networkService.sendResponse(request, GetBlockchainResponse(blocks))
         }
     }
 
@@ -54,7 +55,7 @@ class DefaultBlockchainService(
         networkService.getMessageFlow<Transaction>().collect { transaction ->
             if (validateTransaction(transaction)) {
                 transactions[transaction.id] = transaction
-                block.addTransaction(transaction)
+                currentBlock.addTransaction(transaction)
             }
         }
     }
