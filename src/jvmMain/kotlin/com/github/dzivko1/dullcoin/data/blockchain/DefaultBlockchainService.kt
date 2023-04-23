@@ -74,14 +74,14 @@ class DefaultBlockchainService(
         val inputSum = transaction.inputs.sumOf { input ->
             transactions[input.transactionId]
                 ?.outputs?.getOrNull(input.outputIndex)
-                ?.takeIf { it.recipientKey == transaction.senderKey }
-                ?.value ?: 0
+                ?.takeIf { it.recipient == transaction.sender }
+                ?.amount ?: 0
         }
-        val outputSum = transaction.outputs.sumOf { it.value }
+        val outputSum = transaction.outputs.sumOf { it.amount }
         if (inputSum < outputSum) return false
 
         return transaction.senderSignature?.let {
-            Crypto.verify(transaction.hash(), transaction.senderKey, it)
+            Crypto.verify(transaction.hash(), transaction.sender.publicKey, it)
         } ?: false
     }
 

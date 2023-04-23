@@ -3,11 +3,10 @@ package com.github.dzivko1.dullcoin.domain.blockchain.model
 import com.github.dzivko1.dullcoin.crypto.Crypto
 import kotlinx.serialization.Serializable
 import java.security.PrivateKey
-import java.security.PublicKey
 
 @Serializable
-data class Transaction(
-    val senderKey: PublicKey,
+class Transaction(
+    val sender: Address,
     val inputs: List<Input>,
     val outputs: List<Output>
 ) {
@@ -19,8 +18,8 @@ data class Transaction(
 
     @Serializable
     data class Output(
-        val value: Int,
-        val recipientKey: PublicKey
+        val amount: Int,
+        val recipient: Address
     )
 
     val id: String get() = hash()

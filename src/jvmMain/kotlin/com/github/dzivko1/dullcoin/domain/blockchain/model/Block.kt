@@ -12,7 +12,7 @@ class Block(
     var nonce: Long = 0L
 
     private val _transactions = mutableListOf<Transaction>()
-    val transaction = _transactions as List<Transaction>
+    val transactions = _transactions as List<Transaction>
 
     fun addTransaction(transaction: Transaction) {
         _transactions += transaction
