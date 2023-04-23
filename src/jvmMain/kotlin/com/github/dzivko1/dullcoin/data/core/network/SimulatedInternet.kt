@@ -1,4 +1,4 @@
-package com.github.dzivko1.dullcoin.data.network
+package com.github.dzivko1.dullcoin.data.core.network
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -25,7 +25,7 @@ class SimulatedInternet {
     }
 
     private class Network {
-        val clients = mutableMapOf<String, MutableSharedFlow<String>>()
+        private val clients = mutableMapOf<String, MutableSharedFlow<String>>()
 
         fun connectClient(ownAddress: String): Flow<String> {
             return clients.computeIfAbsent(ownAddress) { MutableSharedFlow() }

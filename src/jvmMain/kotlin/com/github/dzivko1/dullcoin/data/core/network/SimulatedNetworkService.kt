@@ -1,4 +1,4 @@
-package com.github.dzivko1.dullcoin.data.network
+package com.github.dzivko1.dullcoin.data.core.network
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*

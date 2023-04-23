@@ -7,10 +7,12 @@ import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
-import com.github.dzivko1.dullcoin.di.AddressModule
-import com.github.dzivko1.dullcoin.di.CoinModule
-import com.github.dzivko1.dullcoin.di.NetworkModule
+import com.github.dzivko1.dullcoin.di.GlobalModule
+import com.github.dzivko1.dullcoin.di.addressBookModule
+import com.github.dzivko1.dullcoin.di.blockchainModule
+import com.github.dzivko1.dullcoin.di.networkModule
 import org.koin.core.context.startKoin
+import org.koin.dsl.koinApplication
 
 @Composable
 @Preview
@@ -27,9 +29,13 @@ fun App() {
 }
 
 fun main() = application {
-    startKoin {
-        modules(NetworkModule, CoinModule, AddressModule)
-    }
+    startKoin {}
+
+    SimulatedApp(
+        koinApplication {
+            modules(GlobalModule, networkModule(), blockchainModule(), addressBookModule())
+        }
+    )
 
     Window(onCloseRequest = ::exitApplication) {
         App()
