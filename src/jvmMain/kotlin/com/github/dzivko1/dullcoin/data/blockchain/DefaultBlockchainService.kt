@@ -85,10 +85,17 @@ class DefaultBlockchainService(
 
     private fun validateTransaction(transaction: Transaction): Boolean {
         val inputSum = transaction.inputs.sumOf { input ->
-            transactions[input.transactionId]
-                ?.outputs?.getOrNull(input.outputIndex)
+            val inputTransaction = transactions[input.transactionId] ?: return false
+            // We check that each input of this transaction isn't spent. It's spent if there is any existing transaction
+            // which has it as an input.
+            val spent = transactions.values.any { existingTransaction ->
+                existingTransaction.inputs.contains(input)
+            }
+            if (spent) return false
+
+            inputTransaction.outputs.getOrNull(input.outputIndex)
                 ?.takeIf { it.recipient == transaction.sender }
-                ?.amount ?: 0
+                ?.amount ?: return false
         }
         val outputSum = transaction.outputs.sumOf { it.amount }
         if (inputSum < outputSum) return false
