@@ -9,8 +9,10 @@ import com.github.dzivko1.dullcoin.domain.blockchain.model.Address
 import com.github.dzivko1.dullcoin.domain.blockchain.model.Block
 import com.github.dzivko1.dullcoin.domain.blockchain.model.Transaction
 import com.github.dzivko1.dullcoin.domain.blockchain.usecase.SendCoinsResult
+import com.github.dzivko1.dullcoin.util.withReentrantLock
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import java.security.PrivateKey
 
 class DefaultBlockchainService(
@@ -28,6 +30,8 @@ class DefaultBlockchainService(
     private val relevantTransactions = mutableMapOf<String, Transaction>()
 
     private var currentBlock: Block = Block("")
+
+    private val mutex = Mutex()
 
     override fun connectToNetwork() {
         networkService.connect()
@@ -57,25 +61,31 @@ class DefaultBlockchainService(
 
     private suspend fun listenForRequests() {
         networkService.getRequestFlow<GetBlockchainRequest>().collect { request ->
-            networkService.sendResponse(request, GetBlockchainResponse(blocks))
+            mutex.withReentrantLock {
+                networkService.sendResponse(request, GetBlockchainResponse(blocks))
+            }
         }
     }
 
     private suspend fun listenForTransactions() {
         networkService.getMessageFlow<Transaction>().collect { transaction ->
-            if (validateTransaction(transaction)) {
-                transactions[transaction.id] = transaction
-                if (transaction.outputs.any { it.recipient == ownAddress }) {
-                    relevantTransactions[transaction.id] = transaction
+            mutex.withReentrantLock {
+                if (validateTransaction(transaction)) {
+                    transactions[transaction.id] = transaction
+                    if (transaction.outputs.any { it.recipient == ownAddress }) {
+                        relevantTransactions[transaction.id] = transaction
+                    }
+                    currentBlock.addTransaction(transaction)
                 }
-                currentBlock.addTransaction(transaction)
             }
         }
     }
 
     private suspend fun listenForBlocks() {
         networkService.getMessageFlow<Block>().collect {
+            mutex.withReentrantLock {
 
+            }
         }
     }
 
@@ -83,7 +93,7 @@ class DefaultBlockchainService(
 
     }
 
-    private fun validateTransaction(transaction: Transaction): Boolean {
+    private suspend fun validateTransaction(transaction: Transaction): Boolean = mutex.withReentrantLock {
         val inputSum = transaction.inputs.sumOf { input ->
             val inputTransaction = transactions[input.transactionId] ?: return false
             // We check that each input of this transaction isn't spent. It's spent if there is any existing transaction
@@ -98,18 +108,22 @@ class DefaultBlockchainService(
                 ?.amount ?: return false
         }
         val outputSum = transaction.outputs.sumOf { it.amount }
-        if (inputSum < outputSum) return false
+        if (inputSum < outputSum) return@withReentrantLock false
 
-        return transaction.senderSignature?.let {
+        return@withReentrantLock transaction.senderSignature?.let {
             Crypto.verify(transaction.hash(), transaction.sender.publicKey, it)
         } ?: false
     }
 
-    private fun validateBlock(block: Block): Boolean {
+    private suspend fun validateBlock(block: Block): Boolean = mutex.withReentrantLock {
         TODO()
     }
 
-    override suspend fun makeTransaction(amount: Int, recipient: Address, transactionFee: Int): SendCoinsResult {
+    override suspend fun makeTransaction(
+        amount: Int,
+        recipient: Address,
+        transactionFee: Int
+    ): SendCoinsResult = mutex.withReentrantLock {
         val totalToSpend = amount + transactionFee
 
         val inputTransactions = mutableSetOf<Transaction>()
@@ -120,7 +134,7 @@ class DefaultBlockchainService(
 
             if (inputAmount >= totalToSpend) break
         }
-        if (inputAmount < totalToSpend) return SendCoinsResult.InsufficientFunds
+        if (inputAmount < totalToSpend) return@withReentrantLock SendCoinsResult.InsufficientFunds
 
         val changeAmount = inputAmount - totalToSpend
         val inputs = inputTransactions.map { transaction ->
@@ -144,6 +158,6 @@ class DefaultBlockchainService(
         currentBlock.addTransaction(transaction)
         relevantTransactions.values.removeAll(inputTransactions)
 
-        return SendCoinsResult.Success
+        return@withReentrantLock SendCoinsResult.Success
     }
 }
