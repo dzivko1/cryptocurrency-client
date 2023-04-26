@@ -73,7 +73,7 @@ class SimulatedNetworkService(
         responseSerializer: KSerializer<R>,
         responseCount: Int,
         responseTimeout: Int,
-        onResponse: (R) -> Unit
+        onResponse: suspend (R) -> Unit
     ) {
         require(responseCount > 0) { "responseCount must be a positive integer" }
         require(responseTimeout > 0) { "responseTimeout must be a positive integer" }

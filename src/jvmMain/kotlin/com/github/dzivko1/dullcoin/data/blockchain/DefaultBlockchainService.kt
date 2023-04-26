@@ -29,7 +29,8 @@ class DefaultBlockchainService(
      */
     private val relevantTransactions = mutableMapOf<String, Transaction>()
 
-    private var currentBlock: Block = Block("")
+    private lateinit var currentBlock: Block
+    private var miningDifficulty = 1 // TODO
 
     private val mutex = Mutex()
 
@@ -52,10 +53,24 @@ class DefaultBlockchainService(
     private suspend fun downloadBlockchain() {
         networkService.sendRequest(
             request = GetBlockchainRequest,
-            responseCount = 10,
-            responseTimeout = 2000
+            responseCount = 1,
+            responseTimeout = 10000
         ) { response: GetBlockchainResponse ->
-            blocks += response.blockchain
+            response.blockchain.forEach { (blockHash, block) ->
+                if (validateBlock(block)) {
+                    blocks[blockHash] = block
+                    transactions += block.transactions.associateBy { it.id }
+                }
+            }
+            val unprocessedTransactions = listOf<Transaction>() // TODO
+            transactions += unprocessedTransactions.associateBy { it.id }
+            currentBlock = Block(
+                prevHash = findLongestChainEnd()?.hash() ?: "",
+                initialTransactions = unprocessedTransactions
+            )
+        }
+        if (!this::currentBlock.isInitialized) {
+            currentBlock = Block(prevHash = "")
         }
     }
 
@@ -82,9 +97,27 @@ class DefaultBlockchainService(
     }
 
     private suspend fun listenForBlocks() {
-        networkService.getMessageFlow<Block>().collect {
+        networkService.getMessageFlow<Block>().collect { block ->
             mutex.withReentrantLock {
-
+                if (validateBlock(block)) {
+                    val blockTransactions = block.transactions.associateBy { it.id }
+                    transactions.putAll(blockTransactions)
+                    relevantTransactions.putAll(
+                        blockTransactions.filterValues { transaction ->
+                            transaction.outputs.any { it.recipient == ownAddress }
+                        }
+                    )
+                    val blockHash = block.hash()
+                    val topBlockHash =
+                        if (block.prevHash == currentBlock.hash()) blockHash
+                        else findLongestChainEnd()!!.hash()
+                    val leftoverTransactions = currentBlock.transactions.filterNot { block.transactions.contains(it) }
+                    blocks[blockHash] = block
+                    currentBlock = Block(
+                        prevHash = topBlockHash,
+                        initialTransactions = leftoverTransactions
+                    )
+                }
             }
         }
     }
@@ -93,19 +126,38 @@ class DefaultBlockchainService(
 
     }
 
-    private suspend fun validateTransaction(transaction: Transaction): Boolean = mutex.withReentrantLock {
+    private fun findLongestChainEnd(): Block? {
+        if (blocks.isEmpty()) return null
+        val heights = hashMapOf<String, Int>()
+
+        fun findHeight(block: Block): Int {
+            return heights.getOrPut(block.hash()) {
+                val prevBlock = blocks[block.prevHash]
+                if (prevBlock != null) findHeight(prevBlock) + 1
+                else 1
+            }
+        }
+        blocks.values.forEach(::findHeight)
+        val maxHeightHash = heights.maxBy { it.value }.key
+        return blocks[maxHeightHash]
+    }
+
+    private suspend fun validateTransaction(
+        transaction: Transaction,
+        existingTransactions: Map<String, Transaction> = transactions
+    ): Boolean = mutex.withReentrantLock {
         val inputSum = transaction.inputs.sumOf { input ->
-            val inputTransaction = transactions[input.transactionId] ?: return false
+            val inputTransaction = existingTransactions[input.transactionId] ?: return@withReentrantLock false
             // We check that each input of this transaction isn't spent. It's spent if there is any existing transaction
             // which has it as an input.
-            val spent = transactions.values.any { existingTransaction ->
+            val spent = existingTransactions.values.any { existingTransaction ->
                 existingTransaction.inputs.contains(input)
             }
-            if (spent) return false
+            if (spent) return@withReentrantLock false
 
             inputTransaction.outputs.getOrNull(input.outputIndex)
                 ?.takeIf { it.recipient == transaction.sender }
-                ?.amount ?: return false
+                ?.amount ?: return@withReentrantLock false
         }
         val outputSum = transaction.outputs.sumOf { it.amount }
         if (inputSum < outputSum) return@withReentrantLock false
@@ -116,7 +168,20 @@ class DefaultBlockchainService(
     }
 
     private suspend fun validateBlock(block: Block): Boolean = mutex.withReentrantLock {
-        TODO()
+        val prevBlock = blocks[block.prevHash] ?: return@withReentrantLock false
+
+        val validTimeRange = prevBlock.timestamp..System.currentTimeMillis()
+        if (block.timestamp !in validTimeRange) return@withReentrantLock false
+        if (!block.hash().startsWith("0".repeat(miningDifficulty))) return@withReentrantLock false
+
+        val validTransactions = transactions.toMutableMap()
+        for (transaction in block.transactions) {
+            if (validateTransaction(transaction, validTransactions)) {
+                validTransactions[transaction.id] = transaction
+            } else return@withReentrantLock false
+        }
+
+        return@withReentrantLock true
     }
 
     override suspend fun makeTransaction(

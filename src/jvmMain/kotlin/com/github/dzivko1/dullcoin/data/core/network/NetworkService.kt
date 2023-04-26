@@ -39,7 +39,7 @@ interface NetworkService {
         responseSerializer: KSerializer<R>,
         responseCount: Int,
         responseTimeout: Int,
-        onResponse: (R) -> Unit
+        onResponse: suspend (R) -> Unit
     )
 
     /**
@@ -78,7 +78,7 @@ suspend inline fun <reified T, reified R> NetworkService.sendRequest(
     request: T,
     responseCount: Int,
     responseTimeout: Int,
-    noinline onResponse: (R) -> Unit
+    noinline onResponse: suspend (R) -> Unit
 ) {
     sendRequest(
         request = request,
