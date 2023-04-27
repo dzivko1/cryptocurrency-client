@@ -195,6 +195,7 @@ class DefaultBlockchainService(
     private suspend fun validateBlock(block: Block): Boolean = mutex.withReentrantLock {
         val prevBlock = blocks[block.prevHash] ?: return@withReentrantLock false
 
+        if (block.transactions.isEmpty()) return@withReentrantLock false
         val validTimeRange = prevBlock.timestamp..System.currentTimeMillis()
         if (block.timestamp !in validTimeRange) return@withReentrantLock false
         if (!block.hash().startsWith("0".repeat(miningDifficulty))) return@withReentrantLock false
