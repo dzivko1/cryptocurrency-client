@@ -9,7 +9,7 @@ interface BlockchainService {
 
     fun disconnectFromNetwork()
 
-    suspend fun maintainBlockchain()
+    fun startBlockchainMaintenance()
 
     suspend fun makeTransaction(amount: Int, recipient: Address, transactionFee: Int): SendCoinsResult
 

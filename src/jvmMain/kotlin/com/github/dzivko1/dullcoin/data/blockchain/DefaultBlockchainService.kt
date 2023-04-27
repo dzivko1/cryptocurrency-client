@@ -3,6 +3,8 @@ package com.github.dzivko1.dullcoin.data.blockchain
 import com.github.dzivko1.dullcoin.crypto.Crypto
 import com.github.dzivko1.dullcoin.data.blockchain.model.GetBlockchainRequest
 import com.github.dzivko1.dullcoin.data.blockchain.model.GetBlockchainResponse
+import com.github.dzivko1.dullcoin.data.blockchain.model.GetUnconfirmedTransactions
+import com.github.dzivko1.dullcoin.data.blockchain.model.GetUnconfirmedTransactionsResponse
 import com.github.dzivko1.dullcoin.data.core.network.*
 import com.github.dzivko1.dullcoin.domain.blockchain.BlockchainService
 import com.github.dzivko1.dullcoin.domain.blockchain.model.Address
@@ -10,7 +12,8 @@ import com.github.dzivko1.dullcoin.domain.blockchain.model.Block
 import com.github.dzivko1.dullcoin.domain.blockchain.model.Transaction
 import com.github.dzivko1.dullcoin.domain.blockchain.usecase.SendCoinsResult
 import com.github.dzivko1.dullcoin.util.withReentrantLock
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import java.security.PrivateKey
@@ -32,6 +35,7 @@ class DefaultBlockchainService(
     private lateinit var currentBlock: Block
     private var miningDifficulty = 1 // TODO
 
+    private val maintenanceScope = CoroutineScope(Dispatchers.IO)
     private val mutex = Mutex()
 
     override fun connectToNetwork() {
@@ -42,19 +46,21 @@ class DefaultBlockchainService(
         networkService.disconnect()
     }
 
-    override suspend fun maintainBlockchain(): Unit = coroutineScope {
-        downloadBlockchain()
-        launch { listenForRequests() }
-        launch { listenForTransactions() }
-        launch { listenForBlocks() }
-        launch { mine() }
+    override fun startBlockchainMaintenance() {
+        maintenanceScope.launch {
+            downloadBlockchain()
+            launchRequestListeners()
+            launch { listenForTransactions() }
+            launch { listenForBlocks() }
+            launch { mine() }
+        }
     }
 
     private suspend fun downloadBlockchain() {
         networkService.sendRequest(
             request = GetBlockchainRequest,
             responseCount = 1,
-            responseTimeout = 10000
+            responseTimeout = 5000
         ) { response: GetBlockchainResponse ->
             response.blockchain.forEach { (blockHash, block) ->
                 if (validateBlock(block)) {
@@ -62,22 +68,41 @@ class DefaultBlockchainService(
                     transactions += block.transactions.associateBy { it.id }
                 }
             }
-            val unprocessedTransactions = listOf<Transaction>() // TODO
-            transactions += unprocessedTransactions.associateBy { it.id }
+        }
+
+        networkService.sendRequest(
+            request = GetUnconfirmedTransactions,
+            responseCount = 1,
+            responseTimeout = 5000
+        ) { response: GetUnconfirmedTransactionsResponse ->
+            val unconfirmedTransactions = response.unconfirmedTransactions
+            transactions += unconfirmedTransactions.associateBy { it.id }
             currentBlock = Block(
                 prevHash = findLongestChainEnd()?.hash() ?: "",
-                initialTransactions = unprocessedTransactions
+                initialTransactions = unconfirmedTransactions
             )
         }
+
         if (!this::currentBlock.isInitialized) {
             currentBlock = Block(prevHash = "")
         }
     }
 
-    private suspend fun listenForRequests() {
-        networkService.getRequestFlow<GetBlockchainRequest>().collect { request ->
-            mutex.withReentrantLock {
-                networkService.sendResponse(request, GetBlockchainResponse(blocks))
+    private fun launchRequestListeners() {
+        onRequest<GetBlockchainRequest> { request ->
+            networkService.sendResponse(request, GetBlockchainResponse(blocks))
+        }
+        onRequest<GetUnconfirmedTransactions> { request ->
+            networkService.sendResponse(request, GetUnconfirmedTransactionsResponse(currentBlock.transactions))
+        }
+    }
+
+    private inline fun <reified T> onRequest(crossinline onRequest: suspend (Request<T>) -> Unit) {
+        maintenanceScope.launch {
+            networkService.getRequestFlow<T>().collect { request ->
+                mutex.withReentrantLock {
+                    onRequest(request)
+                }
             }
         }
     }
