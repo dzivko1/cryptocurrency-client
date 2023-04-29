@@ -6,7 +6,7 @@ import java.security.PrivateKey
 
 @Serializable
 class Transaction(
-    val sender: Address,
+    val sender: Address?,
     val inputs: List<Input>,
     val outputs: List<Output>
 ) {

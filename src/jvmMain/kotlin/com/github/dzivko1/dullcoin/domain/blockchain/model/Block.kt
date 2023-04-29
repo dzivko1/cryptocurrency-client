@@ -30,6 +30,10 @@ class Block(
         _transactions += transactions
     }
 
+    fun clearTransactions() {
+        _transactions.clear()
+    }
+
     fun hash(): String {
         return Crypto.hash(prevHash + timestamp + nonce + transactions.joinToString { it.hash() })
     }

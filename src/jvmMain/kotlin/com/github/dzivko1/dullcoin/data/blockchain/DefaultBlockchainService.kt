@@ -14,6 +14,7 @@ import com.github.dzivko1.dullcoin.domain.blockchain.usecase.SendCoinsResult
 import com.github.dzivko1.dullcoin.util.withReentrantLock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import java.security.PrivateKey
@@ -32,8 +33,14 @@ class DefaultBlockchainService(
      */
     private val relevantTransactions = mutableMapOf<String, Transaction>()
 
+    /**
+     * Transactions that are not yet included in a block.
+     */
+    private val queuedTransactions = mutableMapOf<String, Transaction>()
+
     private lateinit var currentBlock: Block
     private var miningDifficulty = 1 // TODO
+    private var blockReward = 0 // TODO
 
     private val maintenanceScope = CoroutineScope(Dispatchers.IO)
     private val mutex = Mutex()
@@ -77,14 +84,14 @@ class DefaultBlockchainService(
         ) { response: GetUnconfirmedTransactionsResponse ->
             val unconfirmedTransactions = response.unconfirmedTransactions
             transactions += unconfirmedTransactions.associateBy { it.id }
-            currentBlock = Block(
-                prevHash = findLongestChainEnd()?.hash() ?: "",
-                initialTransactions = unconfirmedTransactions
+            currentBlock = createBlock(
+                prevBlockHash = findLongestChainEnd()?.hash(),
+                transactions = unconfirmedTransactions
             )
         }
 
         if (!this::currentBlock.isInitialized) {
-            currentBlock = Block(prevHash = "")
+            currentBlock = createBlock(prevBlockHash = null)
         }
     }
 
@@ -111,11 +118,10 @@ class DefaultBlockchainService(
         networkService.getMessageFlow<Transaction>().collect { transaction ->
             mutex.withReentrantLock {
                 if (validateTransaction(transaction)) {
-                    transactions[transaction.id] = transaction
+                    queuedTransactions[transaction.id] = transaction
                     if (transaction.outputs.any { it.recipient == ownAddress }) {
                         relevantTransactions[transaction.id] = transaction
                     }
-                    currentBlock.addTransaction(transaction)
                 }
             }
         }
@@ -134,13 +140,13 @@ class DefaultBlockchainService(
                     )
                     val blockHash = block.hash()
                     val topBlockHash =
-                        if (block.prevHash == currentBlock.hash()) blockHash
+                        if (block.prevHash == currentBlock.prevHash) blockHash
                         else findLongestChainEnd()!!.hash()
                     val leftoverTransactions = currentBlock.transactions.filterNot { block.transactions.contains(it) }
                     blocks[blockHash] = block
-                    currentBlock = Block(
-                        prevHash = topBlockHash,
-                        initialTransactions = leftoverTransactions
+                    currentBlock = createBlock(
+                        prevBlockHash = topBlockHash,
+                        transactions = leftoverTransactions
                     )
                 }
             }
@@ -148,7 +154,43 @@ class DefaultBlockchainService(
     }
 
     private suspend fun mine() {
+        while (true) {
+            val existingBlockTransactions = currentBlock.transactions.drop(1)
+            val blockTransactions = existingBlockTransactions + queuedTransactions.values.toList()
 
+            if (blockTransactions.isEmpty()) {
+                // Nothing to mine, wait and check again
+                delay(1000)
+                continue
+            }
+
+            if (existingBlockTransactions != blockTransactions) {
+                // Transaction pool changed, update block and recalculate coinbase transaction
+                mutex.withReentrantLock {
+                    currentBlock.clearTransactions()
+                    currentBlock.addTransaction(createCoinbaseTransaction(blockTransactions))
+                    currentBlock.addTransactions(blockTransactions)
+                    queuedTransactions.clear()
+                }
+            }
+
+            // Mine for some time before refreshing the block
+            val timeout = System.currentTimeMillis() + 5000
+            var hash = currentBlock.hash()
+            while (!hash.fitsHashRequirement()) {
+                currentBlock.nonce++
+                if (System.currentTimeMillis() > timeout) break
+                hash = currentBlock.hash()
+            }
+
+            if (hash.fitsHashRequirement()) {
+                mutex.withReentrantLock {
+                    blocks[hash] = currentBlock
+                    networkService.broadcastMessage(currentBlock)
+                    currentBlock = createBlock(prevBlockHash = hash)
+                }
+            }
+        }
     }
 
     private fun findLongestChainEnd(): Block? {
@@ -162,7 +204,9 @@ class DefaultBlockchainService(
                 else 1
             }
         }
+
         blocks.values.forEach(::findHeight)
+
         val maxHeightHash = heights.maxBy { it.value }.key
         return blocks[maxHeightHash]
     }
@@ -171,6 +215,9 @@ class DefaultBlockchainService(
         transaction: Transaction,
         existingTransactions: Map<String, Transaction> = transactions
     ): Boolean = mutex.withReentrantLock {
+        // Coinbase transaction is validated at block level and always rejected here
+        if (transaction.sender == null) return@withReentrantLock false
+
         val inputSum = transaction.inputs.sumOf { input ->
             val inputTransaction = existingTransactions[input.transactionId] ?: return@withReentrantLock false
             // We check that each input of this transaction isn't spent. It's spent if there is any existing transaction
@@ -180,7 +227,7 @@ class DefaultBlockchainService(
             }
             if (spent) return@withReentrantLock false
 
-            inputTransaction.outputs.getOrNull(input.outputIndex)
+            return@sumOf inputTransaction.outputs.getOrNull(input.outputIndex)
                 ?.takeIf { it.recipient == transaction.sender }
                 ?.amount ?: return@withReentrantLock false
         }
@@ -198,7 +245,8 @@ class DefaultBlockchainService(
         if (block.transactions.isEmpty()) return@withReentrantLock false
         val validTimeRange = prevBlock.timestamp..System.currentTimeMillis()
         if (block.timestamp !in validTimeRange) return@withReentrantLock false
-        if (!block.hash().startsWith("0".repeat(miningDifficulty))) return@withReentrantLock false
+        if (!block.hash().fitsHashRequirement()) return@withReentrantLock false
+        if (!validateCoinbaseTransaction(block)) return@withReentrantLock false
 
         val validTransactions = transactions.toMutableMap()
         for (transaction in block.transactions) {
@@ -208,6 +256,21 @@ class DefaultBlockchainService(
         }
 
         return@withReentrantLock true
+    }
+
+    private suspend fun validateCoinbaseTransaction(
+        block: Block
+    ): Boolean = mutex.withReentrantLock {
+        val firstTransaction = block.transactions.firstOrNull() ?: return@withReentrantLock false
+
+        if (firstTransaction.sender != null ||
+            firstTransaction.inputs.isNotEmpty() ||
+            firstTransaction.outputs.size != 1
+        ) return@withReentrantLock false
+
+        val fees = calculateFees(block.transactions)
+
+        return@withReentrantLock firstTransaction.outputs.first().amount <= blockReward + fees
     }
 
     override suspend fun makeTransaction(
@@ -251,4 +314,40 @@ class DefaultBlockchainService(
 
         return@withReentrantLock SendCoinsResult.Success
     }
+
+    private fun createBlock(prevBlockHash: String?, transactions: List<Transaction> = emptyList()): Block {
+        return Block(
+            prevHash = prevBlockHash ?: "",
+            initialTransactions = transactions
+        )
+    }
+
+    private fun createCoinbaseTransaction(blockTransactions: List<Transaction>): Transaction {
+        val fees = calculateFees(blockTransactions)
+        return Transaction(
+            sender = null,
+            inputs = emptyList(),
+            outputs = listOf(
+                Transaction.Output(
+                    amount = blockReward + fees,
+                    recipient = ownAddress
+                )
+            )
+        )
+    }
+
+    private fun calculateFees(transactions: List<Transaction>): Int {
+        var totalInputs = 0
+        var totalOutputs = 0
+        transactions.forEach { transaction ->
+            totalInputs += transaction.inputs.sumOf { input ->
+                val inputTransaction = this.transactions[input.transactionId]
+                inputTransaction?.outputs?.getOrNull(input.outputIndex)?.amount ?: 0
+            }
+            totalOutputs += transaction.outputs.sumOf { it.amount }
+        }
+        return totalInputs - totalOutputs
+    }
+
+    private fun String.fitsHashRequirement() = startsWith("0".repeat(miningDifficulty))
 }
