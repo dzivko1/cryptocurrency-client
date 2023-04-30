@@ -4,16 +4,16 @@ import com.github.dzivko1.dullcoin.data.util.fitsHashRequirement
 import com.github.dzivko1.dullcoin.domain.blockchain.model.Address
 import com.github.dzivko1.dullcoin.domain.blockchain.model.Block
 import com.github.dzivko1.dullcoin.domain.blockchain.model.Transaction
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlin.concurrent.thread
 
 class Miner(
     private val ownAddress: Address,
-    private val transactionProvider: TransactionProvider,
-    private val coroutineScope: CoroutineScope
+    private val transactionProvider: TransactionProvider
 ) {
-    var currentBlock: Block = Block(prevHash = "")
+    var currentBlock: Block = Block(
+        prevHash = "",
+        initialTransactions = listOf(createCoinbaseTransaction(blockTransactions = emptyList()))
+    )
         private set
 
     /**
@@ -21,7 +21,7 @@ class Miner(
      */
     private val queuedTransactions = linkedMapOf<String, Transaction>()
 
-    var miningDifficulty = 3
+    var miningDifficulty = 4
 
     var minedBlockHeight = 0
         private set
@@ -29,7 +29,7 @@ class Miner(
     var onBlockMined: ((Block) -> Unit)? = null
 
     fun getUnconfirmedTransactions(): List<Transaction> {
-        return currentBlock.transactions + queuedTransactions.values
+        return currentBlock.transactions.drop(1) + queuedTransactions.values
     }
 
     fun setChainEnd(block: Block?, blockHeight: Int) = synchronized(this) {
@@ -53,16 +53,16 @@ class Miner(
         includeTransactions(transactions)
     }
 
-    fun startMining() = coroutineScope.launch {
+    fun startMining() {
+        thread {
+            mine()
+        }
+    }
+
+    private fun mine() {
         while (true) {
             val existingBlockTransactions = currentBlock.transactions.drop(1)
             val blockTransactions = existingBlockTransactions + queuedTransactions.values.toList()
-
-            if (blockTransactions.isEmpty()) {
-                // Nothing to mine, wait and check again
-                delay(1000)
-                continue
-            }
 
             if (existingBlockTransactions != blockTransactions) {
                 // Transaction pool changed, update block and recalculate coinbase transaction
@@ -86,14 +86,17 @@ class Miner(
             if (hash.fitsHashRequirement(miningDifficulty)) {
                 synchronized(this) {
                     onBlockMined?.invoke(currentBlock)
-                    currentBlock = Block(hash)
+                    currentBlock = Block(
+                        prevHash = hash,
+                        initialTransactions = listOf(createCoinbaseTransaction(blockTransactions = emptyList()))
+                    )
                     minedBlockHeight++
                 }
             }
         }
     }
 
-    private fun createCoinbaseTransaction(blockTransactions: List<Transaction>): Transaction {
+    private fun createCoinbaseTransaction(blockTransactions: List<Transaction>): Transaction = synchronized(this) {
         val fees = calculateFees(blockTransactions)
         return Transaction(
             sender = null,
@@ -123,7 +126,7 @@ class Miner(
         return firstTransaction.outputs.first().amount <= calculateBlockReward(blockHeight) + fees
     }
 
-    private fun calculateFees(transactions: List<Transaction>): Int {
+    private fun calculateFees(transactions: List<Transaction>): Int = synchronized(this) {
         var totalInputs = 0
         var totalOutputs = 0
         transactions.forEach { transaction ->

@@ -40,8 +40,7 @@ class DefaultBlockchainService(
         ownAddress = ownAddress,
         transactionProvider = object : TransactionProvider {
             override val transactions get() = confirmedTransactions
-        },
-        coroutineScope = coroutineScope
+        }
     )
 
     init {
