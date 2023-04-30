@@ -21,8 +21,7 @@ class Miner(
      */
     private val queuedTransactions = linkedMapOf<String, Transaction>()
 
-    var miningDifficulty = 1 // TODO
-        private set
+    var miningDifficulty = 3
 
     var minedBlockHeight = 0
         private set

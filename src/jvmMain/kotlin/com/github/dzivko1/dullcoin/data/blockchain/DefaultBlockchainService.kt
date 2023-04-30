@@ -67,6 +67,7 @@ class DefaultBlockchainService(
             launchRequestListeners()
             launch { listenForTransactions() }
             launch { listenForBlocks() }
+            miner.miningDifficulty = calculateMiningDifficulty()
             miner.startMining()
         }
     }
@@ -141,6 +142,8 @@ class DefaultBlockchainService(
                     )
                     blocks[block.hash()] = block
 
+                    miner.miningDifficulty = calculateMiningDifficulty()
+
                     val chainEndChanged = if (block.prevHash == miner.currentBlock.prevHash) {
                         miner.setChainEnd(block,  blockHeight = miner.minedBlockHeight)
                         true
@@ -160,37 +163,6 @@ class DefaultBlockchainService(
                 }
             }
         }
-    }
-
-    /**
-     * @return A Pair where the first element is the ending block of the longest chain, and the second element is its height.
-     */
-    private fun findLongestChainEnd(): Pair<Block?, Int> {
-        if (blocks.isEmpty()) return Pair(null, 0)
-        val heights = hashMapOf<String, Int>()
-
-        fun findHeight(block: Block): Int {
-            return heights.getOrPut(block.hash()) {
-                val prevBlock = blocks[block.prevHash]
-                if (prevBlock != null) findHeight(prevBlock) + 1
-                else 1
-            }
-        }
-
-        blocks.values.forEach(::findHeight)
-
-        val (maxHeightHash, maxHeight) = heights.maxBy { it.value }
-        return Pair(blocks[maxHeightHash], maxHeight)
-    }
-
-    private fun findBlockHeight(block: Block): Int {
-        var height = 0
-        var b = blocks[block.prevHash]
-        while (b != null) {
-            height++
-            b = blocks[b.prevHash]
-        }
-        return height
     }
 
     private suspend fun validateTransaction(
@@ -282,5 +254,48 @@ class DefaultBlockchainService(
         relevantTransactions.values.removeAll(inputTransactions)
 
         return@withReentrantLock SendCoinsResult.Success
+    }
+
+    /**
+     * @return A Pair where the first element is the ending block of the longest chain, and the second element is its height.
+     */
+    private fun findLongestChainEnd(): Pair<Block?, Int> {
+        if (blocks.isEmpty()) return Pair(null, 0)
+        val heights = hashMapOf<String, Int>()
+
+        fun findHeight(block: Block): Int {
+            return heights.getOrPut(block.hash()) {
+                val prevBlock = blocks[block.prevHash]
+                if (prevBlock != null) findHeight(prevBlock) + 1
+                else 1
+            }
+        }
+
+        blocks.values.forEach(::findHeight)
+
+        val (maxHeightHash, maxHeight) = heights.maxBy { it.value }
+        return Pair(blocks[maxHeightHash], maxHeight)
+    }
+
+    private fun findBlockHeight(block: Block): Int {
+        var height = 0
+        var b = blocks[block.prevHash]
+        while (b != null) {
+            height++
+            b = blocks[b.prevHash]
+        }
+        return height
+    }
+
+    private fun calculateMiningDifficulty(): Int {
+        val windowSize = 10
+        val targetBlockTime = 30_000
+
+        if (blocks.size < windowSize) return miner.miningDifficulty
+
+        val timestamps = blocks.values.toList().takeLast(windowSize).map { it.timestamp }
+        val averageBlockTime = (timestamps.last() - timestamps.first()) / windowSize
+        val timeRatio = targetBlockTime / averageBlockTime
+        return (miner.miningDifficulty * timeRatio).toInt()
     }
 }
