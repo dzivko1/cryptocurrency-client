@@ -1,20 +1,20 @@
 package com.github.dzivko1.dullcoin.crypto
 
+import com.github.dzivko1.dullcoin.util.threadLocal
 import java.security.*
 import java.util.*
 
 object Crypto {
 
-    private val messageDigest by lazy { MessageDigest.getInstance("SHA-256") }
-    private val keyGen by lazy {
+    private val messageDigest by threadLocal { MessageDigest.getInstance("SHA-256") }
+    private val keyGen by threadLocal {
         KeyPairGenerator.getInstance("RSA").apply {
             initialize(2048)
         }
     }
-    private val _signer = ThreadLocal.withInitial { Signature.getInstance("SHA256withRSA") }
-    private val signer get() = _signer.get()
-    private val base64Encoder = Base64.getEncoder()
-    private val base64Decoder = Base64.getDecoder()
+    private val signer by threadLocal { Signature.getInstance("SHA256withRSA") }
+    private val base64Encoder by threadLocal { Base64.getEncoder() }
+    private val base64Decoder by threadLocal { Base64.getDecoder() }
 
     fun generateKeyPair(): KeyPair = keyGen.generateKeyPair()
 
