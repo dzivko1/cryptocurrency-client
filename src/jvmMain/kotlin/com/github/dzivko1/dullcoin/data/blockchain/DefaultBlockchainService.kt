@@ -25,13 +25,13 @@ class DefaultBlockchainService(
     private val networkService: NetworkService
 ) : BlockchainService {
 
-    private val blocks = mutableMapOf<String, Block>()
-    private val confirmedTransactions = mutableMapOf<String, Transaction>()
+    private val blocks = linkedMapOf<String, Block>()
+    private val confirmedTransactions = linkedMapOf<String, Transaction>()
 
     /**
      * Unspent transactions in which this address is the recipient.
      */
-    private val relevantTransactions = mutableMapOf<String, Transaction>()
+    private val relevantTransactions = linkedMapOf<String, Transaction>()
 
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
     private val mutex = Mutex()

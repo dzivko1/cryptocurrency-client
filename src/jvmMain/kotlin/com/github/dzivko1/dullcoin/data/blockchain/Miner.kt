@@ -19,7 +19,7 @@ class Miner(
     /**
      * Transactions that are not yet included in a block.
      */
-    private val queuedTransactions = mutableMapOf<String, Transaction>()
+    private val queuedTransactions = linkedMapOf<String, Transaction>()
 
     var miningDifficulty = 1 // TODO
         private set
