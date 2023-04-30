@@ -46,6 +46,13 @@ class DefaultBlockchainService(
 
     init {
         miner.onBlockMined = { block ->
+            val blockTransactions = block.transactions.associateBy { it.id }
+            confirmedTransactions.putAll(blockTransactions)
+            relevantTransactions.putAll(
+                blockTransactions.filterValues { transaction ->
+                    transaction.outputs.any { it.recipient == ownAddress }
+                }
+            )
             blocks[block.hash()] = block
             coroutineScope.launch {
                 networkService.broadcastMessage(block)
@@ -145,7 +152,7 @@ class DefaultBlockchainService(
                     miner.miningDifficulty = calculateMiningDifficulty()
 
                     val chainEndChanged = if (block.prevHash == miner.currentBlock.prevHash) {
-                        miner.setChainEnd(block,  blockHeight = miner.minedBlockHeight)
+                        miner.setChainEnd(block, blockHeight = miner.minedBlockHeight)
                         true
                     } else {
                         val height = findBlockHeight(block)
