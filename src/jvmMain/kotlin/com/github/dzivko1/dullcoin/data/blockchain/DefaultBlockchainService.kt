@@ -94,7 +94,8 @@ class DefaultBlockchainService(
             miner.includeTransactions(unconfirmedTransactions)
         }
 
-        miner.setChainEnd(findLongestChainEnd())
+        val (longestChainEnd, height) = findLongestChainEnd()
+        miner.setChainEnd(longestChainEnd, blockHeight = height)
     }
 
     private fun launchRequestListeners() {
@@ -138,23 +139,34 @@ class DefaultBlockchainService(
                             transaction.outputs.any { it.recipient == ownAddress }
                         }
                     )
-
                     blocks[block.hash()] = block
-                    miner.setChainEnd(
-                        if (block.prevHash == miner.currentBlock.prevHash) block
-                        else findLongestChainEnd()!!
-                    )
 
-                    val leftoverTransactions =
-                        miner.currentBlock.transactions.filterNot { block.transactions.contains(it) }
-                    miner.setTransactions(leftoverTransactions)
+                    val chainEndChanged = if (block.prevHash == miner.currentBlock.prevHash) {
+                        miner.setChainEnd(block,  blockHeight = miner.minedBlockHeight)
+                        true
+                    } else {
+                        val height = findBlockHeight(block)
+                        if (height >= miner.minedBlockHeight) {
+                            miner.setChainEnd(block, blockHeight = height)
+                            true
+                        } else false
+                    }
+
+                    if (chainEndChanged) {
+                        val leftoverTransactions =
+                            miner.currentBlock.transactions.filterNot { block.transactions.contains(it) }
+                        miner.setTransactions(leftoverTransactions)
+                    }
                 }
             }
         }
     }
 
-    private fun findLongestChainEnd(): Block? {
-        if (blocks.isEmpty()) return null
+    /**
+     * @return A Pair where the first element is the ending block of the longest chain, and the second element is its height.
+     */
+    private fun findLongestChainEnd(): Pair<Block?, Int> {
+        if (blocks.isEmpty()) return Pair(null, 0)
         val heights = hashMapOf<String, Int>()
 
         fun findHeight(block: Block): Int {
@@ -167,8 +179,18 @@ class DefaultBlockchainService(
 
         blocks.values.forEach(::findHeight)
 
-        val maxHeightHash = heights.maxBy { it.value }.key
-        return blocks[maxHeightHash]
+        val (maxHeightHash, maxHeight) = heights.maxBy { it.value }
+        return Pair(blocks[maxHeightHash], maxHeight)
+    }
+
+    private fun findBlockHeight(block: Block): Int {
+        var height = 0
+        var b = blocks[block.prevHash]
+        while (b != null) {
+            height++
+            b = blocks[b.prevHash]
+        }
+        return height
     }
 
     private suspend fun validateTransaction(
@@ -206,7 +228,7 @@ class DefaultBlockchainService(
         val validTimeRange = prevBlock.timestamp..System.currentTimeMillis()
         if (block.timestamp !in validTimeRange) return@withReentrantLock false
         if (!block.hash().fitsHashRequirement(miner.miningDifficulty)) return@withReentrantLock false
-        if (!miner.validateCoinbaseTransaction(block)) return@withReentrantLock false
+        if (!miner.validateCoinbaseTransaction(block, findBlockHeight(block))) return@withReentrantLock false
 
         val validTransactions = confirmedTransactions.toMutableMap()
         for (transaction in block.transactions) {

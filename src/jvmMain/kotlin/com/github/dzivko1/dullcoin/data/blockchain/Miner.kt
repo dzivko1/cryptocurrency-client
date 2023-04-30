@@ -24,7 +24,8 @@ class Miner(
     var miningDifficulty = 1 // TODO
         private set
 
-    private var blockReward = 0 // TODO
+    var minedBlockHeight = 0
+        private set
 
     var onBlockMined: ((Block) -> Unit)? = null
 
@@ -32,11 +33,12 @@ class Miner(
         return currentBlock.transactions + queuedTransactions.values
     }
 
-    fun setChainEnd(block: Block?) = synchronized(this) {
+    fun setChainEnd(block: Block?, blockHeight: Int) = synchronized(this) {
         currentBlock = Block(
             prevHash = block?.hash() ?: "",
             initialTransactions = currentBlock.transactions
         )
+        minedBlockHeight = blockHeight + 1
     }
 
     fun includeTransaction(transaction: Transaction) = synchronized(this) {
@@ -86,6 +88,7 @@ class Miner(
                 synchronized(this) {
                     onBlockMined?.invoke(currentBlock)
                     currentBlock = Block(hash)
+                    minedBlockHeight++
                 }
             }
         }
@@ -98,7 +101,7 @@ class Miner(
             inputs = emptyList(),
             outputs = listOf(
                 Transaction.Output(
-                    amount = blockReward + fees,
+                    amount = calculateBlockReward(minedBlockHeight) + fees,
                     recipient = ownAddress
                 )
             )
@@ -106,7 +109,8 @@ class Miner(
     }
 
     fun validateCoinbaseTransaction(
-        block: Block
+        block: Block,
+        blockHeight: Int
     ): Boolean = synchronized(this) {
         val firstTransaction = block.transactions.firstOrNull() ?: return false
 
@@ -117,7 +121,7 @@ class Miner(
 
         val fees = calculateFees(block.transactions)
 
-        return firstTransaction.outputs.first().amount <= blockReward + fees
+        return firstTransaction.outputs.first().amount <= calculateBlockReward(blockHeight) + fees
     }
 
     private fun calculateFees(transactions: List<Transaction>): Int {
@@ -131,5 +135,9 @@ class Miner(
             totalOutputs += transaction.outputs.sumOf { it.amount }
         }
         return totalInputs - totalOutputs
+    }
+
+    private fun calculateBlockReward(blockHeight: Int): Int {
+        return (100_000_000 - blockHeight).coerceAtLeast(0)
     }
 }
