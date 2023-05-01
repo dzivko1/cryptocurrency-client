@@ -28,7 +28,9 @@ class Transaction(
         private set
 
     fun hash(): String {
-        return Crypto.hash(toString())
+        return Crypto.hash(
+            sender.toString() + inputs.joinToString() + outputs.joinToString()
+        )
     }
 
     fun sign(key: PrivateKey) {

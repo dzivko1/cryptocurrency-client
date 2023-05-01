@@ -18,8 +18,11 @@ object Crypto {
 
     fun generateKeyPair(): KeyPair = keyGen.generateKeyPair()
 
+    fun toBase64String(byteArray: ByteArray): String = base64Encoder.encodeToString(byteArray)
+    fun fromBase64String(string: String): ByteArray = base64Decoder.decode(string)
+
     fun hash(data: String): String {
-        return base64Encoder.encodeToString(
+        return toBase64String(
             hash(data.toByteArray())
         )
     }
@@ -34,14 +37,14 @@ object Crypto {
             update(message.toByteArray())
             sign()
         }
-        return base64Encoder.encodeToString(signature)
+        return toBase64String(signature)
     }
 
     fun verify(message: String, publicKey: PublicKey, signature: String): Boolean {
         return with(signer) {
             initVerify(publicKey)
             update(message.toByteArray())
-            verify(base64Decoder.decode(signature))
+            verify(fromBase64String(signature))
         }
     }
 }
