@@ -88,6 +88,9 @@ class DefaultBlockchainService(
                 if (validateBlock(block)) {
                     blocks[blockHash] = block
                     confirmedTransactions += block.transactions.associateBy { it.id }
+                    relevantTransactions += confirmedTransactions.filterValues { transaction ->
+                        transaction.outputs.any { it.recipient == ownAddress }
+                    }
                 }
             }
         }
@@ -102,7 +105,11 @@ class DefaultBlockchainService(
         }
 
         val (longestChainEnd, height) = findLongestChainEnd()
-        miner.setChainEnd(longestChainEnd, blockHeight = height)
+        miner.setChainEnd(
+            block = longestChainEnd,
+            blockHeight = height,
+            newBlockTransactions = miner.getTransactions()
+        )
     }
 
     private fun launchRequestListeners() {
@@ -110,7 +117,7 @@ class DefaultBlockchainService(
             networkService.sendResponse(request, GetBlockchainResponse(blocks))
         }
         onRequest<GetUnconfirmedTransactions> { request ->
-            val unconfirmedTransactions = miner.getUnconfirmedTransactions()
+            val unconfirmedTransactions = miner.getTransactions()
             networkService.sendResponse(request, GetUnconfirmedTransactionsResponse(unconfirmedTransactions))
         }
     }
@@ -150,21 +157,24 @@ class DefaultBlockchainService(
 
                     miner.miningDifficulty = calculateMiningDifficulty()
 
-                    val chainEndChanged = if (block.prevHash == miner.currentBlock.prevHash) {
-                        miner.setChainEnd(block, blockHeight = miner.minedBlockHeight)
-                        true
+                    val heightToPass = if (block.prevHash == miner.currentBlock.prevHash) {
+                        // The received block was in the place of our mined block
+                        miner.minedBlockHeight
                     } else {
-                        val height = findBlockHeight(block)
-                        if (height >= miner.minedBlockHeight) {
-                            miner.setChainEnd(block, blockHeight = height)
-                            true
-                        } else false
+                        // The received block was somewhere else, check if it made a new longest chain or not
+                        findBlockHeight(block).takeIf { it >= miner.minedBlockHeight }
                     }
 
-                    if (chainEndChanged) {
-                        val leftoverTransactions =
-                            miner.currentBlock.transactions.filterNot { block.transactions.contains(it) }
-                        miner.setTransactions(leftoverTransactions)
+                    // Relocate to the new longest chain if one was made
+                    if (heightToPass != null) {
+                        val leftoverTransactions = miner.currentBlock.transactions
+                            .drop(1)
+                            .filterNot { block.transactions.contains(it) }
+                        miner.setChainEnd(
+                            block = block,
+                            blockHeight = heightToPass,
+                            newBlockTransactions = leftoverTransactions
+                        )
                     }
                 }
             }
@@ -200,16 +210,16 @@ class DefaultBlockchainService(
     }
 
     private suspend fun validateBlock(block: Block): Boolean = mutex.withReentrantLock {
-        val prevBlock = blocks[block.prevHash] ?: return@withReentrantLock false
+        val prevBlock = blocks[block.prevHash]
+        if (prevBlock == null && block.prevHash != "") return@withReentrantLock false
 
-        if (block.transactions.isEmpty()) return@withReentrantLock false
-        val validTimeRange = prevBlock.timestamp..System.currentTimeMillis()
+        val validTimeRange = (prevBlock?.timestamp ?: 0)..System.currentTimeMillis()
         if (block.timestamp !in validTimeRange) return@withReentrantLock false
         if (!block.hash().fitsHashRequirement(miner.miningDifficulty)) return@withReentrantLock false
         if (!miner.validateCoinbaseTransaction(block, findBlockHeight(block))) return@withReentrantLock false
 
         val validTransactions = confirmedTransactions.toMutableMap()
-        for (transaction in block.transactions) {
+        for (transaction in block.transactions.drop(1)) {
             if (validateTransaction(transaction, validTransactions)) {
                 validTransactions[transaction.id] = transaction
             } else return@withReentrantLock false
@@ -227,7 +237,7 @@ class DefaultBlockchainService(
 
         val inputTransactions = mutableSetOf<Transaction>()
         var inputAmount = 0
-        for (transaction in confirmedTransactions.values) {
+        for (transaction in relevantTransactions.values) {
             inputTransactions += transaction
             inputAmount += transaction.outputs.find { it.recipient == ownAddress }?.amount ?: 0
 
@@ -266,7 +276,7 @@ class DefaultBlockchainService(
      * @return A Pair where the first element is the ending block of the longest chain, and the second element is its height.
      */
     private fun findLongestChainEnd(): Pair<Block?, Int> {
-        if (blocks.isEmpty()) return Pair(null, 0)
+        if (blocks.isEmpty()) return Pair(null, -1)
         val heights = hashMapOf<String, Int>()
 
         fun findHeight(block: Block): Int {

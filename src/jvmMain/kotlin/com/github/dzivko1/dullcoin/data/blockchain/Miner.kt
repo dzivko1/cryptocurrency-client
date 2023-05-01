@@ -10,11 +10,10 @@ class Miner(
     private val ownAddress: Address,
     private val transactionProvider: TransactionProvider
 ) {
-    var currentBlock: Block = Block(
-        prevHash = "",
-        initialTransactions = listOf(createCoinbaseTransaction(blockTransactions = emptyList()))
-    )
+    var currentBlock: Block = createBlock(prevBlockHash = "")
         private set
+
+    private var newBlock: Block? = null
 
     /**
      * Transactions that are not yet included in a block.
@@ -28,16 +27,16 @@ class Miner(
 
     var onBlockMined: ((Block) -> Unit)? = null
 
-    fun getUnconfirmedTransactions(): List<Transaction> {
+    fun getTransactions(): List<Transaction> {
         return currentBlock.transactions.drop(1) + queuedTransactions.values
     }
 
-    fun setChainEnd(block: Block?, blockHeight: Int) = synchronized(this) {
-        currentBlock = Block(
-            prevHash = block?.hash() ?: "",
-            initialTransactions = currentBlock.transactions
-        )
+    fun setChainEnd(block: Block?, blockHeight: Int, newBlockTransactions: List<Transaction>) = synchronized(this) {
         minedBlockHeight = blockHeight + 1
+        newBlock = createBlock(
+            prevBlockHash = block?.hash() ?: "",
+            initialTransactions = newBlockTransactions
+        )
     }
 
     fun includeTransaction(transaction: Transaction) = synchronized(this) {
@@ -48,11 +47,6 @@ class Miner(
         queuedTransactions += transactions.associateBy { it.id }
     }
 
-    fun setTransactions(transactions: List<Transaction>) = synchronized(this) {
-        queuedTransactions.clear()
-        includeTransactions(transactions)
-    }
-
     fun startMining() {
         thread {
             mine()
@@ -61,6 +55,11 @@ class Miner(
 
     private fun mine() {
         while (true) {
+            newBlock?.let {
+                currentBlock = it
+                newBlock = null
+            }
+
             val existingBlockTransactions = currentBlock.transactions.drop(1)
             val blockTransactions = existingBlockTransactions + queuedTransactions.values.toList()
 
@@ -75,25 +74,33 @@ class Miner(
             }
 
             // Mine for some time before refreshing the block
-            val timeout = System.currentTimeMillis() + 5000
+            val timeout = System.currentTimeMillis() + 1000
+            currentBlock.timestamp = System.currentTimeMillis()
             var hash = currentBlock.hash()
             while (!hash.fitsHashRequirement(miningDifficulty)) {
                 currentBlock.nonce++
-                if (System.currentTimeMillis() > timeout) break
+                if (System.currentTimeMillis() > timeout || newBlock != null) break
                 hash = currentBlock.hash()
             }
 
             if (hash.fitsHashRequirement(miningDifficulty)) {
                 synchronized(this) {
                     onBlockMined?.invoke(currentBlock)
-                    currentBlock = Block(
-                        prevHash = hash,
-                        initialTransactions = listOf(createCoinbaseTransaction(blockTransactions = emptyList()))
-                    )
                     minedBlockHeight++
+                    currentBlock = createBlock(prevBlockHash = hash)
                 }
             }
         }
+    }
+
+    private fun createBlock(prevBlockHash: String, initialTransactions: List<Transaction> = emptyList()): Block {
+        return Block(
+            prevHash = prevBlockHash,
+            initialTransactions = buildList {
+                add(createCoinbaseTransaction(blockTransactions = initialTransactions))
+                addAll(initialTransactions)
+            }
+        )
     }
 
     private fun createCoinbaseTransaction(blockTransactions: List<Transaction>): Transaction = synchronized(this) {
@@ -121,7 +128,7 @@ class Miner(
             firstTransaction.outputs.size != 1
         ) return false
 
-        val fees = calculateFees(block.transactions)
+        val fees = calculateFees(block.transactions.drop(1))
 
         return firstTransaction.outputs.first().amount <= calculateBlockReward(blockHeight) + fees
     }

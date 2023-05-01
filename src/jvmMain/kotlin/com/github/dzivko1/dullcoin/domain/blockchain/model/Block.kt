@@ -15,8 +15,6 @@ class Block(
     }
 
     var timestamp: Long = 0L
-        private set
-
     var nonce: Long = 0L
 
     private val _transactions = mutableListOf<Transaction>()
