@@ -15,6 +15,9 @@ import com.github.dzivko1.dullcoin.domain.blockchain.usecase.SendCoinsResult
 import com.github.dzivko1.dullcoin.util.withReentrantLock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import java.security.PrivateKey
@@ -43,6 +46,10 @@ class DefaultBlockchainService(
         }
     )
 
+    private val _balanceFlow = MutableStateFlow(0)
+    override val balanceFlow: Flow<Int>
+        get() = _balanceFlow.asStateFlow()
+
     init {
         miner.onBlockMined = { block ->
             val blockTransactions = block.transactions.associateBy { it.id }
@@ -53,6 +60,7 @@ class DefaultBlockchainService(
                 }
             )
             blocks[block.hash()] = block
+            updateBalance()
             coroutineScope.launch {
                 networkService.broadcastMessage(block)
             }
@@ -82,7 +90,7 @@ class DefaultBlockchainService(
         networkService.sendRequest(
             request = GetBlockchainRequest,
             responseCount = 1,
-            responseTimeout = 5000
+            responseTimeout = 50
         ) { response: GetBlockchainResponse ->
             response.blockchain.forEach { (blockHash, block) ->
                 if (validateBlock(block)) {
@@ -91,6 +99,7 @@ class DefaultBlockchainService(
                     relevantTransactions += confirmedTransactions.filterValues { transaction ->
                         transaction.outputs.any { it.recipient == ownAddress }
                     }
+                    updateBalance()
                 }
             }
         }
@@ -98,7 +107,7 @@ class DefaultBlockchainService(
         networkService.sendRequest(
             request = GetUnconfirmedTransactions,
             responseCount = 1,
-            responseTimeout = 5000
+            responseTimeout = 50
         ) { response: GetUnconfirmedTransactionsResponse ->
             val unconfirmedTransactions = response.unconfirmedTransactions
             miner.includeTransactions(unconfirmedTransactions)
@@ -154,6 +163,7 @@ class DefaultBlockchainService(
                         }
                     )
                     blocks[block.hash()] = block
+                    updateBalance()
 
                     miner.miningDifficulty = calculateMiningDifficulty()
 
@@ -268,8 +278,18 @@ class DefaultBlockchainService(
 
         miner.includeTransaction(transaction)
         relevantTransactions.values.removeAll(inputTransactions)
+        updateBalance()
 
         return@withReentrantLock SendCoinsResult.Success
+    }
+
+    private fun updateBalance() {
+        val balance = relevantTransactions.values.sumOf { transaction ->
+            transaction.outputs
+                .filter { it.recipient == ownAddress }
+                .sumOf { it.amount }
+        }
+        _balanceFlow.value = balance
     }
 
     /**
