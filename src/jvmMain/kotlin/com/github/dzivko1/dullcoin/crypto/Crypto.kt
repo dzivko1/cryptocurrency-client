@@ -1,12 +1,18 @@
 package com.github.dzivko1.dullcoin.crypto
 
 import com.github.dzivko1.dullcoin.util.threadLocal
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.security.*
 import java.util.*
 
 object Crypto {
 
-    private val messageDigest by threadLocal { MessageDigest.getInstance("SHA-256") }
+    init {
+        Security.addProvider(BouncyCastleProvider())
+    }
+
+    private val sha256 by threadLocal { MessageDigest.getInstance("SHA-256") }
+    private val ripemd160 by threadLocal { MessageDigest.getInstance("RIPEMD160") }
     private val keyGen by threadLocal {
         KeyPairGenerator.getInstance("RSA").apply {
             initialize(2048)
@@ -28,7 +34,11 @@ object Crypto {
     }
 
     fun hash(data: ByteArray): ByteArray {
-        return messageDigest.digest(data)
+        return sha256.digest(data)
+    }
+
+    fun hashShort(data: ByteArray): ByteArray {
+        return ripemd160.digest(data)
     }
 
     fun sign(message: String, privateKey: PrivateKey): String {

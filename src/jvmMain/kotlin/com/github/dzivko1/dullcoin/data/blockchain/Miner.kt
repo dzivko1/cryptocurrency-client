@@ -106,7 +106,7 @@ class Miner(
     private fun createCoinbaseTransaction(blockTransactions: List<Transaction>): Transaction = synchronized(this) {
         val fees = calculateFees(blockTransactions)
         return Transaction(
-            sender = null,
+            senderPublicKey = null,
             inputs = emptyList(),
             outputs = listOf(
                 Transaction.Output(
@@ -123,7 +123,7 @@ class Miner(
     ): Boolean = synchronized(this) {
         val firstTransaction = block.transactions.firstOrNull() ?: return false
 
-        if (firstTransaction.sender != null ||
+        if (firstTransaction.senderPublicKey != null ||
             firstTransaction.inputs.isNotEmpty() ||
             firstTransaction.outputs.size != 1
         ) return false

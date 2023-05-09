@@ -21,9 +21,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import java.security.PrivateKey
+import java.security.PublicKey
 
 class DefaultBlockchainService(
     private val ownAddress: Address,
+    private val ownPublicKey: PublicKey,
     private val privateKey: PrivateKey,
     private val networkService: NetworkService
 ) : BlockchainService {
@@ -196,7 +198,7 @@ class DefaultBlockchainService(
         existingTransactions: Map<String, Transaction> = confirmedTransactions
     ): Boolean = mutex.withReentrantLock {
         // Coinbase transaction is validated at block level and always rejected here
-        if (transaction.sender == null) return@withReentrantLock false
+        if (transaction.senderPublicKey == null) return@withReentrantLock false
 
         val inputSum = transaction.inputs.sumOf { input ->
             val inputTransaction = existingTransactions[input.transactionId] ?: return@withReentrantLock false
@@ -207,15 +209,16 @@ class DefaultBlockchainService(
             }
             if (spent) return@withReentrantLock false
 
+            val sender = Address(transaction.senderPublicKey)
             return@sumOf inputTransaction.outputs.getOrNull(input.outputIndex)
-                ?.takeIf { it.recipient == transaction.sender }
+                ?.takeIf { it.recipient == sender }
                 ?.amount ?: return@withReentrantLock false
         }
         val outputSum = transaction.outputs.sumOf { it.amount }
         if (inputSum < outputSum) return@withReentrantLock false
 
         return@withReentrantLock transaction.senderSignature?.let {
-            Crypto.verify(transaction.hash(), transaction.sender.publicKey, it)
+            Crypto.verify(transaction.hash(), transaction.senderPublicKey, it)
         } ?: false
     }
 
@@ -267,7 +270,7 @@ class DefaultBlockchainService(
             Transaction.Output(changeAmount, ownAddress)
         )
         val transaction = Transaction(
-            sender = ownAddress,
+            senderPublicKey = ownPublicKey,
             inputs = inputs,
             outputs = outputs
         ).apply { sign(privateKey) }

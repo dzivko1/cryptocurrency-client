@@ -1,12 +1,15 @@
 package com.github.dzivko1.dullcoin.domain.blockchain.model
 
 import com.github.dzivko1.dullcoin.crypto.Crypto
+import com.github.dzivko1.dullcoin.data.core.serial.PublicKeySerializer
 import kotlinx.serialization.Serializable
 import java.security.PrivateKey
+import java.security.PublicKey
 
 @Serializable
 class Transaction(
-    val sender: Address?,
+    @Serializable(with = PublicKeySerializer::class)
+    val senderPublicKey: PublicKey?,
     val inputs: List<Input>,
     val outputs: List<Output>
 ) {
@@ -29,7 +32,7 @@ class Transaction(
 
     fun hash(): String {
         return Crypto.hash(
-            sender.toString() + inputs.joinToString() + outputs.joinToString()
+            senderPublicKey?.encoded?.let { Crypto.toBase64String(it) } + inputs.joinToString() + outputs.joinToString()
         )
     }
 

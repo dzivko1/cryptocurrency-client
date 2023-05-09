@@ -9,6 +9,7 @@ import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.module
 import java.security.KeyPair
 import java.security.PrivateKey
+import java.security.PublicKey
 
 fun blockchainModule() = module {
 
@@ -16,8 +17,10 @@ fun blockchainModule() = module {
     // each of them, but for the purposes of this project, this should suffice
     single<KeyPair> { Crypto.generateKeyPair() }
 
-    single<Address> { Address(get<KeyPair>().public) }
+    single<PublicKey> { get<KeyPair>().public }
     single<PrivateKey> { get<KeyPair>().private }
+
+    single<Address> { Address(get<PublicKey>()) }
 
     singleOf(::DefaultBlockchainService) { bind<BlockchainService>() }
 }
