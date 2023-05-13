@@ -10,10 +10,7 @@ import androidx.compose.ui.Modifier
 fun HistoryPanel(
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        modifier = modifier,
-        shape = MaterialTheme.shapes.medium
-    ) {
+    Panel(modifier) {
         Text("history")
     }
 }
