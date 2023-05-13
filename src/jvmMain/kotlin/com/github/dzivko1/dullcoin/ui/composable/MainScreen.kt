@@ -1,13 +1,14 @@
-package com.github.dzivko1.dullcoin.ui
+package com.github.dzivko1.dullcoin.ui.composable
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.github.dzivko1.dullcoin.ui.MainViewModel
 
 @Composable
-fun MainScreen() {
+fun MainScreen(viewModel: MainViewModel) {
     Scaffold {
         Row(
             Modifier
@@ -21,7 +22,14 @@ fun MainScreen() {
                     .weight(0.5f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                MoneyPanel(Modifier.fillMaxWidth())
+                MoneyPanel(
+                    uiState = viewModel.moneyUiState,
+                    onSendAddressChange = viewModel::onSendAddressChange,
+                    onAmountToSendChange = viewModel::onAmountToSendChange,
+                    onTransactionFeeChange = viewModel::onTransactionFeeChange,
+                    onSendClick = viewModel::sendCoins,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 AddressBookPanel(
                     Modifier
                         .fillMaxWidth()

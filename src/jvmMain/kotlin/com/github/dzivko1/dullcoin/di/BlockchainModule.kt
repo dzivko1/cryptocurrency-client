@@ -4,7 +4,10 @@ import com.github.dzivko1.dullcoin.crypto.Crypto
 import com.github.dzivko1.dullcoin.data.blockchain.DefaultBlockchainService
 import com.github.dzivko1.dullcoin.domain.blockchain.BlockchainService
 import com.github.dzivko1.dullcoin.domain.blockchain.model.Address
+import com.github.dzivko1.dullcoin.domain.blockchain.usecase.GetBalanceUseCase
+import com.github.dzivko1.dullcoin.domain.blockchain.usecase.SendCoinsUseCase
 import org.koin.core.module.dsl.bind
+import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.module
 import java.security.KeyPair
@@ -23,4 +26,7 @@ fun blockchainModule() = module {
     single<Address> { Address(get<PublicKey>()) }
 
     singleOf(::DefaultBlockchainService) { bind<BlockchainService>() }
+
+    factoryOf(::GetBalanceUseCase)
+    factoryOf(::SendCoinsUseCase)
 }

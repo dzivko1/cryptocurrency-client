@@ -1,4 +1,4 @@
-package com.github.dzivko1.dullcoin.ui
+package com.github.dzivko1.dullcoin.ui.composable
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding

@@ -24,6 +24,7 @@ kotlin {
         val jvmMain by getting {
             dependencies {
                 implementation(compose.desktop.currentOs)
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:${extra["coroutines.version"]}")
                 implementation("io.insert-koin:koin-core:${extra["koin.version"]}")
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:${extra["serialization.version"]}")
                 implementation("org.bouncycastle:bcprov-jdk15on:1.70")
