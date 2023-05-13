@@ -7,6 +7,7 @@ import com.github.dzivko1.dullcoin.domain.blockchain.model.Address
 import com.github.dzivko1.dullcoin.domain.blockchain.usecase.GetBalanceUseCase
 import com.github.dzivko1.dullcoin.domain.blockchain.usecase.SendCoinsResult
 import com.github.dzivko1.dullcoin.domain.blockchain.usecase.SendCoinsUseCase
+import com.github.dzivko1.dullcoin.domain.core.usecase.InitializeAppUseCase
 import com.github.dzivko1.dullcoin.ui.snackbar.SnackbarState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -14,6 +15,7 @@ import kotlinx.coroutines.launch
 
 class MainViewModel(
     private val address: Address,
+    private val initializeAppUseCase: InitializeAppUseCase,
     private val getBalanceUseCase: GetBalanceUseCase,
     private val sendCoinsUseCase: SendCoinsUseCase
 ) {
@@ -32,6 +34,7 @@ class MainViewModel(
 
     init {
         coroutineScope.launch {
+            initializeAppUseCase.invoke()
             getBalanceUseCase().collect { balance ->
                 moneyUiState = moneyUiState.copy(balance = "Balance: ${balance.toMoneyString()}")
             }

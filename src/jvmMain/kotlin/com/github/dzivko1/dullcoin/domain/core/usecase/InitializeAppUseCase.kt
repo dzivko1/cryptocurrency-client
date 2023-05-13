@@ -1,6 +1,12 @@
 package com.github.dzivko1.dullcoin.domain.core.usecase
 
-class InitializeAppUseCase(
+import com.github.dzivko1.dullcoin.domain.blockchain.BlockchainService
 
+class InitializeAppUseCase(
+    private val blockchainService: BlockchainService
 ) {
+    operator fun invoke() {
+        blockchainService.connectToNetwork()
+        blockchainService.startBlockchainMaintenance()
+    }
 }
