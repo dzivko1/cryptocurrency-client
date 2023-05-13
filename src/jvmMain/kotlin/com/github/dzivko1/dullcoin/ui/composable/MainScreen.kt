@@ -2,14 +2,37 @@ package com.github.dzivko1.dullcoin.ui.composable
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.Scaffold
+import androidx.compose.material.Snackbar
+import androidx.compose.material.SnackbarHost
+import androidx.compose.material.rememberScaffoldState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.github.dzivko1.dullcoin.ui.MainViewModel
 
 @Composable
 fun MainScreen(viewModel: MainViewModel) {
-    Scaffold {
+    val scaffoldState = rememberScaffoldState()
+    val snackbarHostState = scaffoldState.snackbarHostState
+
+    viewModel.snackbar?.let { snackbar ->
+        LaunchedEffect(Unit) {
+            snackbarHostState.showSnackbar(
+                message = snackbar.message
+            )
+            viewModel.consumeSnackbar()
+        }
+    }
+
+    Scaffold(
+        scaffoldState = scaffoldState,
+        snackbarHost = { state ->
+            SnackbarHost(state) {
+                Snackbar(it)
+            }
+        }
+    ) {
         Row(
             Modifier
                 .fillMaxSize()

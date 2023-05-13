@@ -7,6 +7,7 @@ import com.github.dzivko1.dullcoin.domain.blockchain.model.Address
 import com.github.dzivko1.dullcoin.domain.blockchain.usecase.GetBalanceUseCase
 import com.github.dzivko1.dullcoin.domain.blockchain.usecase.SendCoinsResult
 import com.github.dzivko1.dullcoin.domain.blockchain.usecase.SendCoinsUseCase
+import com.github.dzivko1.dullcoin.ui.snackbar.SnackbarState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -18,6 +19,9 @@ class MainViewModel(
 ) {
 
     private val coroutineScope = CoroutineScope(Dispatchers.Main)
+
+    var snackbar by mutableStateOf<SnackbarState?>(null)
+        private set
 
     var moneyUiState by mutableStateOf(
         MoneyUiState(
@@ -53,9 +57,17 @@ class MainViewModel(
                 recipient = Address(moneyUiState.sendAddress),
                 transactionFee = moneyUiState.transactionFee.toInt()
             )) {
-                SendCoinsResult.Success -> TODO()
-                SendCoinsResult.InsufficientFunds -> TODO()
+                SendCoinsResult.Success -> showSnackbar("Coins sent!")
+                SendCoinsResult.InsufficientFunds -> showSnackbar("You don't have enough coins!")
             }
         }
+    }
+
+    private fun showSnackbar(message: String) {
+        snackbar = SnackbarState(message)
+    }
+
+    fun consumeSnackbar() {
+        snackbar = null
     }
 }
