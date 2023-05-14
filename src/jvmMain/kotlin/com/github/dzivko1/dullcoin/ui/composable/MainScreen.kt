@@ -54,6 +54,12 @@ fun MainScreen(viewModel: MainViewModel) {
                     modifier = Modifier.fillMaxWidth()
                 )
                 AddressBookPanel(
+                    uiState = viewModel.addressBookUiState,
+                    onNameChange = viewModel::onNameChange,
+                    onAddressChange = viewModel::onAddressChange,
+                    onSaveClick = viewModel::saveAddress,
+                    onDeleteClick = viewModel::deleteAddress,
+                    onAddressDoubleClick = viewModel::fillAddress,
                     Modifier
                         .fillMaxWidth()
                         .weight(1f)
