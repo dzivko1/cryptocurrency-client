@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import java.security.PrivateKey
 import java.security.PublicKey
+import kotlin.math.pow
 
 class DefaultBlockchainService(
     private val ownAddress: Address,
@@ -63,6 +64,7 @@ class DefaultBlockchainService(
             )
             blocks[block.hash()] = block
             updateBalance()
+            miner.miningDifficulty = calculateMiningDifficulty()
             coroutineScope.launch {
                 networkService.broadcastMessage(block)
             }
@@ -328,13 +330,13 @@ class DefaultBlockchainService(
 
     private fun calculateMiningDifficulty(): Int {
         val windowSize = 10
-        val targetBlockTime = 30_000
+        val targetBlockTime = 30_000L
 
         if (blocks.size < windowSize) return miner.miningDifficulty
 
         val timestamps = blocks.values.toList().takeLast(windowSize).map { it.timestamp }
-        val averageBlockTime = (timestamps.last() - timestamps.first()) / windowSize
+        val averageBlockTime = (timestamps.last() - timestamps.first()) / windowSize.toDouble()
         val timeRatio = targetBlockTime / averageBlockTime
-        return (miner.miningDifficulty * timeRatio).toInt()
+        return (miner.miningDifficulty * timeRatio.pow(0.1)).toInt()
     }
 }
