@@ -133,9 +133,9 @@ class Miner(
         return firstTransaction.outputs.first().amount <= calculateBlockReward(blockHeight) + fees
     }
 
-    private fun calculateFees(transactions: List<Transaction>): Int = synchronized(this) {
-        var totalInputs = 0
-        var totalOutputs = 0
+    private fun calculateFees(transactions: List<Transaction>): Long = synchronized(this) {
+        var totalInputs = 0L
+        var totalOutputs = 0L
         transactions.forEach { transaction ->
             totalInputs += transaction.inputs.sumOf { input ->
                 val inputTransaction = transactionProvider.transactions[input.transactionId]

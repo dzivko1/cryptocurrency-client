@@ -1,3 +1,3 @@
 package com.github.dzivko1.dullcoin.ui
 
-fun Int.toMoneyString() = "$this Đ"
+fun Long.toMoneyString() = "$this Đ"

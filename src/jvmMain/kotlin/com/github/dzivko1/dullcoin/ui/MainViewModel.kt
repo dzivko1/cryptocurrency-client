@@ -56,9 +56,9 @@ class MainViewModel(
     fun sendCoins() {
         coroutineScope.launch {
             when (sendCoinsUseCase.invoke(
-                amount = moneyUiState.amountToSend.toInt(),
+                amount = moneyUiState.amountToSend.toLong(),
                 recipient = Address(moneyUiState.sendAddress),
-                transactionFee = moneyUiState.transactionFee.toInt()
+                transactionFee = moneyUiState.transactionFee.toLong()
             )) {
                 SendCoinsResult.Success -> showSnackbar("Coins sent!")
                 SendCoinsResult.InsufficientFunds -> showSnackbar("You don't have enough coins!")

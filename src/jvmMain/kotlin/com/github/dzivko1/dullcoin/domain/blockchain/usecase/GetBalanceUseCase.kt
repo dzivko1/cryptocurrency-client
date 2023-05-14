@@ -6,5 +6,5 @@ import kotlinx.coroutines.flow.Flow
 class GetBalanceUseCase(
     private val blockchainService: BlockchainService
 ) {
-    operator fun invoke(): Flow<Int> = blockchainService.balanceFlow
+    operator fun invoke(): Flow<Long> = blockchainService.balanceFlow
 }

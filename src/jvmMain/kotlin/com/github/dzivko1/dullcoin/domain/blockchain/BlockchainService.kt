@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface BlockchainService {
 
-    val balanceFlow: Flow<Int>
+    val balanceFlow: Flow<Long>
 
     fun connectToNetwork()
 
@@ -14,6 +14,6 @@ interface BlockchainService {
 
     fun startBlockchainMaintenance()
 
-    suspend fun makeTransaction(amount: Int, recipient: Address, transactionFee: Int): SendCoinsResult
+    suspend fun makeTransaction(amount: Long, recipient: Address, transactionFee: Long): SendCoinsResult
 
 }

@@ -48,8 +48,8 @@ class DefaultBlockchainService(
         }
     )
 
-    private val _balanceFlow = MutableStateFlow(0)
-    override val balanceFlow: Flow<Int>
+    private val _balanceFlow = MutableStateFlow(0L)
+    override val balanceFlow: Flow<Long>
         get() = _balanceFlow.asStateFlow()
 
     init {
@@ -242,17 +242,17 @@ class DefaultBlockchainService(
     }
 
     override suspend fun makeTransaction(
-        amount: Int,
+        amount: Long,
         recipient: Address,
-        transactionFee: Int
+        transactionFee: Long
     ): SendCoinsResult = mutex.withReentrantLock {
         val totalToSpend = amount + transactionFee
 
         val inputTransactions = mutableSetOf<Transaction>()
-        var inputAmount = 0
+        var inputAmount = 0L
         for (transaction in relevantTransactions.values) {
             inputTransactions += transaction
-            inputAmount += transaction.outputs.find { it.recipient == ownAddress }?.amount ?: 0
+            inputAmount += transaction.outputs.find { it.recipient == ownAddress }?.amount ?: 0L
 
             if (inputAmount >= totalToSpend) break
         }

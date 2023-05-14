@@ -21,7 +21,7 @@ class Transaction(
 
     @Serializable
     data class Output(
-        val amount: Int,
+        val amount: Long,
         val recipient: Address
     )
 

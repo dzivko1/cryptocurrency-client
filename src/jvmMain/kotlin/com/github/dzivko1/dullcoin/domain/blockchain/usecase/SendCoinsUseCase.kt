@@ -6,7 +6,7 @@ import com.github.dzivko1.dullcoin.domain.blockchain.model.Address
 class SendCoinsUseCase(
     private val blockchainService: BlockchainService
 ) {
-    suspend operator fun invoke(amount: Int, recipient: Address, transactionFee: Int): SendCoinsResult {
+    suspend operator fun invoke(amount: Long, recipient: Address, transactionFee: Long): SendCoinsResult {
         return blockchainService.makeTransaction(amount, recipient, transactionFee)
     }
 }
