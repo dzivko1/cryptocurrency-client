@@ -243,6 +243,13 @@ class DefaultBlockchainService(
         return@withReentrantLock true
     }
 
+    override fun getUserTransactions(): List<Transaction> {
+        return confirmedTransactions.values.filter { transaction ->
+            transaction.senderPublicKey == ownPublicKey ||
+                    transaction.outputs.any { it.recipient == ownAddress }
+        }
+    }
+
     override suspend fun makeTransaction(
         amount: Long,
         recipient: Address,

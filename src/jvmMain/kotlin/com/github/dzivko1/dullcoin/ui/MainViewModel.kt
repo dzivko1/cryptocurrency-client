@@ -9,6 +9,7 @@ import com.github.dzivko1.dullcoin.domain.address.usecase.GetAddressBookUseCase
 import com.github.dzivko1.dullcoin.domain.address.usecase.RemoveFromAddressBookUseCase
 import com.github.dzivko1.dullcoin.domain.blockchain.model.Address
 import com.github.dzivko1.dullcoin.domain.blockchain.usecase.GetBalanceUseCase
+import com.github.dzivko1.dullcoin.domain.blockchain.usecase.GetUserTransactionsUseCase
 import com.github.dzivko1.dullcoin.domain.blockchain.usecase.SendCoinsResult
 import com.github.dzivko1.dullcoin.domain.blockchain.usecase.SendCoinsUseCase
 import com.github.dzivko1.dullcoin.domain.core.usecase.InitializeAppUseCase
@@ -18,13 +19,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class MainViewModel(
-    private val address: Address,
+    private val ownAddress: Address,
     private val initializeAppUseCase: InitializeAppUseCase,
     private val getBalanceUseCase: GetBalanceUseCase,
     private val sendCoinsUseCase: SendCoinsUseCase,
     private val getAddressBookUseCase: GetAddressBookUseCase,
     private val addToAddressBookUseCase: AddToAddressBookUseCase,
-    private val removeFromAddressBookUseCase: RemoveFromAddressBookUseCase
+    private val removeFromAddressBookUseCase: RemoveFromAddressBookUseCase,
+    private val getUserTransactionsUseCase: GetUserTransactionsUseCase
 ) {
 
     private val coroutineScope = CoroutineScope(Dispatchers.Main)
@@ -34,7 +36,7 @@ class MainViewModel(
 
     var moneyUiState by mutableStateOf(
         MoneyUiState(
-            ownAddress = address.stringRepresentation
+            ownAddress = ownAddress.stringRepresentation
         )
     )
         private set
@@ -42,11 +44,38 @@ class MainViewModel(
     var addressBookUiState by mutableStateOf(AddressBookUiState())
         private set
 
+    var historyUiState by mutableStateOf(HistoryUiState())
+        private set
+
     init {
         coroutineScope.launch {
             initializeAppUseCase.invoke()
             getBalanceUseCase().collect { balance ->
                 moneyUiState = moneyUiState.copy(balance = "Balance: ${balance.toMoneyString()}")
+                historyUiState = historyUiState.copy(
+                    transactions = getUserTransactionsUseCase().map { transaction ->
+                        val senderAddress = transaction.senderPublicKey?.let { Address(it) }
+                        val sender = when (senderAddress) {
+                            ownAddress -> "Me"
+                            null -> "Coinbase"
+                            else -> getNameFromAddressBook(senderAddress) ?: senderAddress.stringRepresentation
+                        }
+
+                        val recipientAddress = transaction.outputs.find { it.recipient != senderAddress }?.recipient
+                        val recipient = when (recipientAddress) {
+                            ownAddress -> "Me"
+                            null -> ""
+                            else -> getNameFromAddressBook(recipientAddress) ?: recipientAddress.stringRepresentation
+                        }
+
+                        val amount = transaction.outputs
+                            .filterNot { it.recipient == senderAddress }
+                            .sumOf { it.amount }
+                            .toMoneyString()
+
+                        TransactionUi(sender, recipient, amount)
+                    }
+                )
             }
         }
         coroutineScope.launch {
@@ -54,6 +83,10 @@ class MainViewModel(
                 addressBookUiState = addressBookUiState.copy(entries = addresses)
             }
         }
+    }
+
+    private fun getNameFromAddressBook(address: Address): String? {
+        return addressBookUiState.entries.find { it.address == address.stringRepresentation  }?.name
     }
 
     fun onSendAddressChange(address: String) {

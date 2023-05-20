@@ -67,6 +67,7 @@ fun MainScreen(viewModel: MainViewModel) {
             }
 
             HistoryPanel(
+                uiState = viewModel.historyUiState,
                 Modifier
                     .weight(0.5f)
                     .fillMaxSize()

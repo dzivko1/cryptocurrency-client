@@ -5,6 +5,7 @@ import com.github.dzivko1.dullcoin.data.blockchain.DefaultBlockchainService
 import com.github.dzivko1.dullcoin.domain.blockchain.BlockchainService
 import com.github.dzivko1.dullcoin.domain.blockchain.model.Address
 import com.github.dzivko1.dullcoin.domain.blockchain.usecase.GetBalanceUseCase
+import com.github.dzivko1.dullcoin.domain.blockchain.usecase.GetUserTransactionsUseCase
 import com.github.dzivko1.dullcoin.domain.blockchain.usecase.SendCoinsUseCase
 import com.github.dzivko1.dullcoin.domain.core.usecase.InitializeAppUseCase
 import org.koin.core.module.dsl.bind
@@ -31,4 +32,5 @@ fun blockchainModule() = module {
     factoryOf(::InitializeAppUseCase)
     factoryOf(::GetBalanceUseCase)
     factoryOf(::SendCoinsUseCase)
+    factoryOf(::GetUserTransactionsUseCase)
 }
