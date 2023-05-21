@@ -5,6 +5,7 @@ import com.github.dzivko1.dullcoin.domain.blockchain.model.Address
 import com.github.dzivko1.dullcoin.domain.blockchain.model.Block
 import com.github.dzivko1.dullcoin.domain.blockchain.model.Transaction
 import kotlin.concurrent.thread
+import kotlin.random.Random
 
 class Miner(
     private val ownAddress: Address,
@@ -64,6 +65,7 @@ class Miner(
     private fun mine() {
         while (!Thread.interrupted()) {
             newBlock?.let {
+                it.nonce = Random.nextLong()
                 currentBlock = it
                 newBlock = null
             }
@@ -155,6 +157,6 @@ class Miner(
     }
 
     private fun calculateBlockReward(blockHeight: Int): Int {
-        return (100_000_000 - blockHeight).coerceAtLeast(0)
+        return (100 - blockHeight).coerceAtLeast(0)
     }
 }
