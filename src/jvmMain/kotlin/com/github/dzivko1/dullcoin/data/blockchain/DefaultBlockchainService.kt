@@ -321,7 +321,7 @@ class DefaultBlockchainService(
             return heights.getOrPut(block.hash()) {
                 val prevBlock = blocks[block.prevHash]
                 if (prevBlock != null) findHeight(prevBlock) + 1
-                else 1
+                else 0
             }
         }
 
