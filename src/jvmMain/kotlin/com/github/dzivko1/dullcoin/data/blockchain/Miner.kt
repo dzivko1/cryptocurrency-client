@@ -27,6 +27,8 @@ class Miner(
 
     var onBlockMined: ((Block) -> Unit)? = null
 
+    private var miningThread: Thread? = null
+
     fun getTransactions(): List<Transaction> {
         return currentBlock.transactions.drop(1) + queuedTransactions.values
     }
@@ -48,13 +50,19 @@ class Miner(
     }
 
     fun startMining() {
-        thread {
+        miningThread = thread {
             mine()
         }
     }
 
+    fun stopMining() {
+        miningThread?.interrupt()
+        miningThread?.join()
+        miningThread = null
+    }
+
     private fun mine() {
-        while (true) {
+        while (!Thread.interrupted()) {
             newBlock?.let {
                 currentBlock = it
                 newBlock = null

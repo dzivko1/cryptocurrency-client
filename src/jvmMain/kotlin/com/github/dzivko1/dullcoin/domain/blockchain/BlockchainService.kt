@@ -15,6 +15,8 @@ interface BlockchainService {
 
     fun startBlockchainMaintenance()
 
+    fun stopBlockchainMaintenance()
+
     fun getUserTransactions(): List<Transaction>
 
     suspend fun makeTransaction(amount: Long, recipient: Address, transactionFee: Long): SendCoinsResult

@@ -15,6 +15,7 @@ import com.github.dzivko1.dullcoin.domain.blockchain.usecase.SendCoinsResult
 import com.github.dzivko1.dullcoin.util.withReentrantLock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -71,11 +72,11 @@ class DefaultBlockchainService(
         }
     }
 
-    override fun connectToNetwork() {
+    override suspend fun connectToNetwork() {
         networkService.connect()
     }
 
-    override fun disconnectFromNetwork() {
+    override suspend fun disconnectFromNetwork() {
         networkService.disconnect()
     }
 
@@ -88,6 +89,11 @@ class DefaultBlockchainService(
             miner.miningDifficulty = calculateMiningDifficulty()
             miner.startMining()
         }
+    }
+
+    override fun stopBlockchainMaintenance() {
+        miner.stopMining()
+        coroutineScope.cancel()
     }
 
     private suspend fun downloadBlockchain() {

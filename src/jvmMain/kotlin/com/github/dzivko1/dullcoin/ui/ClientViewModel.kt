@@ -12,15 +12,17 @@ import com.github.dzivko1.dullcoin.domain.blockchain.usecase.GetBalanceUseCase
 import com.github.dzivko1.dullcoin.domain.blockchain.usecase.GetUserTransactionsUseCase
 import com.github.dzivko1.dullcoin.domain.blockchain.usecase.SendCoinsResult
 import com.github.dzivko1.dullcoin.domain.blockchain.usecase.SendCoinsUseCase
-import com.github.dzivko1.dullcoin.domain.core.usecase.InitializeAppUseCase
+import com.github.dzivko1.dullcoin.domain.core.usecase.ExitClientUseCase
+import com.github.dzivko1.dullcoin.domain.core.usecase.InitializeClientUseCase
 import com.github.dzivko1.dullcoin.ui.snackbar.SnackbarState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-class MainViewModel(
+class ClientViewModel(
     private val ownAddress: Address,
-    private val initializeAppUseCase: InitializeAppUseCase,
+    private val initializeClientUseCase: InitializeClientUseCase,
+    private val exitClientUseCase: ExitClientUseCase,
     private val getBalanceUseCase: GetBalanceUseCase,
     private val sendCoinsUseCase: SendCoinsUseCase,
     private val getAddressBookUseCase: GetAddressBookUseCase,
@@ -49,7 +51,7 @@ class MainViewModel(
 
     init {
         coroutineScope.launch {
-            initializeAppUseCase.invoke()
+            initializeClientUseCase.invoke()
             getBalanceUseCase().collect { balance ->
                 moneyUiState = moneyUiState.copy(balance = "Balance: ${balance.toMoneyString()}")
                 historyUiState = historyUiState.copy(
@@ -82,6 +84,12 @@ class MainViewModel(
             getAddressBookUseCase().collect {addresses ->
                 addressBookUiState = addressBookUiState.copy(entries = addresses)
             }
+        }
+    }
+
+    fun exit() {
+        coroutineScope.launch {
+            exitClientUseCase.invoke()
         }
     }
 
