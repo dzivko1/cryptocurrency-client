@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.Button
 import androidx.compose.material.Divider
 import androidx.compose.material.Text
@@ -25,7 +26,7 @@ fun MoneyPanel(
 ) {
     Panel(modifier) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(uiState.ownAddress)
+            BasicTextField(uiState.ownAddress, onValueChange = {}, readOnly = true)
             Text(uiState.balance)
             Divider()
             Text("Send coins")

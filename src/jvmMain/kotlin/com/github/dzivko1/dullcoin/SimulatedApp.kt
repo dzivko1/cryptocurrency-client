@@ -20,7 +20,7 @@ class SimulatedApp(
     fun Window(onCloseRequest: () -> Unit) {
         androidx.compose.ui.window.Window(
             state = rememberWindowState(
-                width = 800.dp,
+                width = 1000.dp,
                 height = 650.dp
             ),
             title = "DullCoin Client #${index + 1}",
