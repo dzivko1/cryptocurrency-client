@@ -16,11 +16,11 @@ class SimulatedNetworkService(
 
     private var messageFlow: Flow<String> = emptyFlow()
 
-    override fun connect() {
+    override suspend fun connect() {
         messageFlow = internet.connect(address, networkId)
     }
 
-    override fun disconnect() {
+    override suspend fun disconnect() {
         internet.disconnect(address, networkId)
         messageFlow = emptyFlow()
     }

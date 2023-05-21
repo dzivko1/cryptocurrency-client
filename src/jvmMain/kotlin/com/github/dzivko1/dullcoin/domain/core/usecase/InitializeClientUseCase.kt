@@ -5,7 +5,7 @@ import com.github.dzivko1.dullcoin.domain.blockchain.BlockchainService
 class InitializeAppUseCase(
     private val blockchainService: BlockchainService
 ) {
-    operator fun invoke() {
+    suspend operator fun invoke() {
         blockchainService.connectToNetwork()
         blockchainService.startBlockchainMaintenance()
     }

@@ -9,9 +9,9 @@ interface BlockchainService {
 
     val balanceFlow: Flow<Long>
 
-    fun connectToNetwork()
+    suspend fun connectToNetwork()
 
-    fun disconnectFromNetwork()
+    suspend fun disconnectFromNetwork()
 
     fun startBlockchainMaintenance()
 

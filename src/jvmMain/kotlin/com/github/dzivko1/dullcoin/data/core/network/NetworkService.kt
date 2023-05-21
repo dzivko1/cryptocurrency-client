@@ -7,9 +7,9 @@ import kotlinx.serialization.serializer
 
 interface NetworkService {
 
-    fun connect()
+    suspend fun connect()
 
-    fun disconnect()
+    suspend fun disconnect()
 
     fun <T> getMessageFlow(messageSerializer: KSerializer<T>): Flow<T>
 
