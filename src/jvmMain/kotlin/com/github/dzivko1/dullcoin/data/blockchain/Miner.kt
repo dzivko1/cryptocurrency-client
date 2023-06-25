@@ -157,6 +157,6 @@ class Miner(
     }
 
     private fun calculateBlockReward(blockHeight: Int): Int {
-        return (100 - blockHeight).coerceAtLeast(0)
+        return (200 - blockHeight).coerceAtLeast(0)
     }
 }

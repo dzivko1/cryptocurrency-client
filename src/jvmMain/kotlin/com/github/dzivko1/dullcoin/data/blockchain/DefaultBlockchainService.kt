@@ -100,7 +100,7 @@ class DefaultBlockchainService(
         networkService.sendRequest(
             request = GetBlockchainRequest,
             responseCount = 1,
-            responseTimeout = 50
+            responseTimeout = 500
         ) { response: GetBlockchainResponse ->
             response.blockchain.forEach { (blockHash, block) ->
                 if (validateBlock(block)) {
@@ -117,7 +117,7 @@ class DefaultBlockchainService(
         networkService.sendRequest(
             request = GetUnconfirmedTransactions,
             responseCount = 1,
-            responseTimeout = 50
+            responseTimeout = 500
         ) { response: GetUnconfirmedTransactionsResponse ->
             val unconfirmedTransactions = response.unconfirmedTransactions
             miner.includeTransactions(unconfirmedTransactions)
